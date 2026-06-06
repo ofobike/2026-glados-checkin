@@ -250,47 +250,24 @@ def dingtalk(token, title, content):
         log(f"❌ 钉钉推送失败: {e}")
 
 def telegram_push(token, chat_id, title, content):
+    """Telegram 推送（纯文本格式）"""
     if not token or not chat_id: return
     try:
         url = f"https://api.telegram.org/bot{token}/sendMessage"
-        # Convert HTML to be Telegram-compatible
-        text = f"<b>{title}</b>\n\n{content}"
-        
-        # 1. Block elements replacements (handle tags with attributes)
-        text = text.replace("<br>", "\n")
-        # Handle H3 tags
-        text = re.sub(r"<h3[^>]*>", "<b>", text)
-        text = text.replace("</h3>", "</b>\n")
-        
-        # 2. Paragraph and Div tags
-        text = re.sub(r"<(div|p)[^>]*>", "", text)
-        text = re.sub(r"</(div|p)>", "\n", text)
-        
-        # 3. Span and small tags
-        text = re.sub(r"<(span|small)[^>]*>", "", text)
-        text = re.sub(r"</(span|small)>", "", text)
-        
-        # 4. Final cleaning: Strip all HTML tags EXCEPT the ones supported by Telegram: b, i, u, s, a, code, pre
-        text = re.sub(r"<(?!\/?(b|i|u|s|a|code|pre)\b)[^>]+>", "", text)
-        
-        # 5. Dedent each line to fix alignment issues caused by HTML template indentation
-        lines = [line.strip() for line in text.split('\n')]
-        text = "\n".join(lines)
-        
-        # 6. Collapse multiple newlines
-        text = re.sub(r"\n\s*\n", "\n\n", text).strip()
-        
+        text = f"{title}\n\n{content}"
         data = {
             "chat_id": chat_id,
-            "text": text,
-            "parse_mode": "HTML"
+            "text": text
         }
-        log(f"发送内容: {data}")
-        resp=requests.post(url, json=data, timeout=5)
-        if resp.status_code != 200:
-            log(f"❌ Telegram 推送失败: {resp.json()}")
-            return
-        log("✅ Telegram 推送成功")
+        resp = requests.post(url, json=data, timeout=10)
+        if resp.status_code == 200:
+            result = resp.json()
+            if result.get('ok'):
+                log("✅ Telegram 推送成功")
+            else:
+                log(f"❌ Telegram 推送失败: {result.get('description')}")
+        else:
+            log(f"❌ Telegram 推送失败: {resp.status_code}")
     except Exception as e:
         log(f"❌ Telegram 推送失败: {e}")
 
@@ -373,8 +350,7 @@ def main():
         send_alert("⚠️ GLaDOS 配置异常", "未配置 GLADOS_COOKIE，请检查 GitHub Secrets。")
         sys.exit(1)
 
-    results_html = []      # HTML 格式（Server酱、Telegram）
-    results_dingtalk = []  # 纯文本格式（钉钉）
+    results = []           # 美观纯文本格式（所有渠道统一）
     success_cnt = 0
     expired_cookies = []
 
@@ -411,23 +387,8 @@ def main():
 
         if checkin_ok: success_cnt += 1
 
-        # 4. HTML 格式（Server酱、Telegram）
-        results_html.append(f"""
-<div style="border:2px solid #333; padding:15px; margin-bottom:15px; border-radius:10px; background:#fff;">
-    <h3 style="margin:0 0 15px 0; color:#333; border-bottom:2px solid #333; padding-bottom:8px;">👤 {g.email}</h3>
-    <p style="margin:8px 0; color:#000; font-size:16px;"><b>当前积分:</b> <span style="color:#e74c3c; font-size:22px; font-weight:bold;">{g.points}</span> <span style="color:#27ae60; font-weight:bold;">({g.points_change})</span></p>
-    <p style="margin:8px 0; color:#000; font-size:16px;"><b>剩余天数:</b> <span style="font-weight:bold;">{g.left_days} 天</span></p>
-    <p style="margin:8px 0; color:#000; font-size:16px;"><b>签到结果:</b> {msg}</p>
-    <div style="margin-top:15px; padding:12px; background:#f0f0f0; border-radius:8px; border:1px solid #ccc;">
-        <p style="margin:0 0 8px 0; color:#333; font-weight:bold; font-size:15px;">🎁 兑换选项:</p>
-        <p style="margin:0; color:#000; font-size:14px; line-height:1.8;">
-{g.exchange_info}</p>
-    </div>
-</div>
-""")
-
-        # 5. 钉钉纯文本格式
-        results_dingtalk.append(format_dingtalk_message(g, msg, checkin_ok))
+        # 4. 统一纯文本格式
+        results.append(format_dingtalk_message(g, msg, checkin_ok))
 
     # Cookie 过期告警
     if expired_cookies:
@@ -456,23 +417,20 @@ def main():
 
     if (tg_token and tg_chat_id) or sc_key or ding_token:
         title = f"GLaDOS签到: 成功{success_cnt}/{len(cookies)}"
+        # 所有渠道统一使用美观的纯文本格式
+        text_content = "\n\n".join(results)
 
-        # Server酱（HTML）
+        # Server酱
         if sc_key:
-            html_content = "".join(results_html)
-            html_content += f"<br><small>时间: {now_bjt().strftime('%Y-%m-%d %H:%M:%S')}</small>"
-            serverchan(sc_key, title, html_content)
+            serverchan(sc_key, title, text_content)
 
-        # Telegram（HTML）
+        # Telegram
         if tg_token and tg_chat_id:
-            html_content = "".join(results_html)
-            html_content += f"<br><small>时间: {now_bjt().strftime('%Y-%m-%d %H:%M:%S')}</small>"
-            telegram_push(tg_token, tg_chat_id, title, html_content)
+            telegram_push(tg_token, tg_chat_id, title, text_content)
 
-        # 钉钉（纯文本，美观排版）
+        # 钉钉
         if ding_token:
-            dingtalk_content = "\n\n".join(results_dingtalk)
-            dingtalk(ding_token, title, dingtalk_content)
+            dingtalk(ding_token, title, text_content)
 
 if __name__ == '__main__':
     main()
