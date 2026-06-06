@@ -15,6 +15,7 @@
 | ✅ **2026年验证可用** | 经过实测，确认在2026年4月20日正常工作               |
 | ✅ **绝对可用**       | 修复了其他脚本失效的问题（token更新为glados.cloud） |
 | ✅ **新手友好**       | 全程图解，不会也能照着做                            |
+| ✅ **多渠道推送**     | 支持微信/Telegram/钉钉/Server酱 四大推送渠道       |
 | ✅ **作者持续维护**   | 遇到问题提Issue，作者很乐意帮忙                     |
 
 ---
@@ -38,7 +39,7 @@
 │                                                             │
 │   ③ 配置 cron    ──→  5分钟填好，永久有效                    │
 │                                                             │
-│   ✅ 完成！每天自动签到 + 微信通知                            │
+│   ✅ 完成！每天自动签到 + 推送通知                            │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -53,6 +54,25 @@
 **⭐ 觉得有用？点个 Star 支持一下！**
 
 </div>
+
+---
+
+## 📑 目录
+
+- [💡 重要说明](#-重要说明)
+- [🔥 为什么你需要这个](#-为什么你需要这个)
+- [✨ 功能特点](#-功能特点)
+- [🛠 配置参数](#-配置参数环境变量)
+- [📱 推送渠道说明](#-推送渠道说明)
+- [🚀 快速部署](#-快速部署)
+- [⭐ 推荐方案：cron-job.org 配置定时](#-推荐方案-cron-joborg-配置定时)
+- [💻 本地/独立服务器部署](#-本地独立服务器部署教程)
+- [❄️ NixOS 服务配置](#️-nixos-服务配置)
+- [📊 推送效果预览](#-推送效果预览)
+- [❓ 常见问题](#-常见问题)
+- [📂 项目文件](#-项目文件)
+- [🤝 需要帮助](#-需要帮助)
+- [📝 更新日志](#-更新日志)
 
 ---
 
@@ -134,15 +154,23 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 
 ## ✨ 功能特点
 
-| 功能            | 说明                            |
-| --------------- | ------------------------------- |
-| 🎯 **精准积分** | 获取真实积分数据 + 每日变化量   |
-| 🎁 **兑换提示** | 显示当前可兑换选项及差额        |
-| ⏰ **每日两次** | 早上 9:30 + 晚上 21:30 自动签到 |
-| 🔄 **失败重试** | 首次失败自动重试一次            |
-| 📱 **微信推送** | PushPlus 漂亮 HTML 报告         |
-| ☁️ **2026 API** | 适配最新 glados.cloud API       |
-| 🔧 **持续维护** | 发现问题及时修复                |
+| 功能                    | 说明                                    |
+| ----------------------- | --------------------------------------- |
+| 🎯 **精准积分**         | 获取真实积分数据 + 每日变化量           |
+| 🎁 **兑换提示**         | 显示当前可兑换选项及差额，带进度条      |
+| ⏰ **每日两次**         | 早上 9:30 + 晚上 21:30 自动签到         |
+| 🔄 **失败重试**         | 首次失败自动重试一次                    |
+| 📱 **多渠道推送**       | 微信/Telegram/钉钉/Server酱 四选一或组合 |
+| 📊 **积分趋势图**       | ASCII 趋势图展示近7天积分变化           |
+| 🔥 **连续签到统计**     | 记录连续签到天数和最佳纪录              |
+| 💰 **签到价值估算**     | 自动换算积分对应的会员天数              |
+| 🎯 **智能兑换推荐**     | 根据积分增速推荐最优兑换方案            |
+| ☀️ **天气 + 每日一句**  | 推送附带天气预报和励志语录              |
+| 🍪 **Cookie 过期告警**  | Cookie 失效时自动发送告警通知           |
+| ☁️ **2026 API**         | 适配最新 glados.cloud API               |
+| 🔄 **智能域名切换**     | 自动尝试 cloud → rocks → network        |
+| 📋 **多账号支持**       | 一个配置管理多个 GLaDOS 账号            |
+| 🔧 **持续维护**         | 发现问题及时修复                        |
 
 ---
 
@@ -156,14 +184,37 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | `PUSHPLUS_TOKEN`     | ❌ 否 | PushPlus 微信推送 Token。                                                  |
 | `TELEGRAM_BOT_TOKEN` | ❌ 否 | Telegram 机器人的 Token（例如 `123456:ABC-DEF1234...`）                    |
 | `TELEGRAM_CHAT_ID`   | ❌ 否 | 接收推送的 Telegram Chat ID                                                |
+| `SEND_KEY`           | ❌ 否 | Server酱推送 Key（免费推送到微信公众号）                                   |
+| `DINGTALK_TOKEN`     | ❌ 否 | 钉钉机器人 Webhook 的 access_token                                        |
 | `PUSH_LEVEL`         | ❌ 否 | 推送级别：`all` (默认，每次均推送) 或 `fail_only` (仅有账号签到失败时推送) |
 
+> 💡 **推送渠道可自由组合**：你可以同时配置多个推送渠道，签到结果会同时推送到所有已配置的渠道。详见 [推送渠道说明](#-推送渠道说明)。
+
 ---
+
+## 📱 推送渠道说明
+
+本项目支持 **4 种推送渠道**，可按需选择一个或多个：
+
+| 渠道        | 平台         | 费用 | 获取方式                                                        | 需要的变量            |
+| ----------- | ------------ | ---- | --------------------------------------------------------------- | --------------------- |
+| **PushPlus** | 微信         | 免费 | [pushplus.plus](https://www.pushplus.plus) 微信扫码登录获取 Token | `PUSHPLUS_TOKEN`      |
+| **Telegram** | Telegram     | 免费 | 通过 @BotFather 创建机器人，获取 Token 和 Chat ID               | `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` |
+| **Server酱** | 微信公众号   | 免费 | [sct.ftqq.com](https://sct.ftqq.com) 注册获取 SendKey           | `SEND_KEY`            |
+| **钉钉**     | 钉钉         | 免费 | 创建钉钉群机器人，获取 Webhook access_token                     | `DINGTALK_TOKEN`      |
+
+> 💡 **推荐**：如果你只选一个，推荐 **PushPlus**（配置最简单）或 **Telegram**（最稳定）。
+>
+> 所有渠道的推送内容格式一致，包含积分详情、进度条、趋势图、天气和每日一句。
+
+---
+
+## 🚀 快速部署
 
 <details>
 <summary><b>📚 给小白的科普：什么是 Fork、Cookie、Secrets？（新手必看）</b></summary>
 
-> 💡 如果你已经熟悉这些概念，可以跳过这部分直接看 [快速部署](#-快速部署)
+> 💡 如果你已经熟悉这些概念，可以跳过这部分直接看 [快速部署步骤](#第一步fork-本仓库)
 
 <details>
 <summary><b>🍴 什么是 Fork？</b></summary>
@@ -220,8 +271,6 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 
 ---
 
-## 🚀 快速部署
-
 ### 第一步：Fork 本仓库
 
 点击页面右上角的 **Fork** 按钮，将项目复制到你的账号下。
@@ -234,7 +283,7 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 
 #### 2.1 安装 Cookie 扩展
 
-在 **Edge 浏览器** 的扩展商店搜索 [cookie](file://d:\workplace\2026-glados-checkin\checkin.py#L0-L0)，安装 **Cookie-Editor** 或类似的 Cookie 管理扩展：
+在 **Edge 浏览器** 的扩展商店搜索 cookie，安装 **Cookie-Editor** 或类似的 Cookie 管理扩展：
 
 ![Cookie-Editor 扩展](images/cookie-extension.png)
 
@@ -304,18 +353,26 @@ else:
 
 ![添加 Secret](images/add-secret.png)
 
-添加以下两个 Secret：
+添加以下 Secret（至少配置 `GLADOS_COOKIE`，其余为可选推送渠道）：
 
-| Name             | Value                    | 必需  |
-| ---------------- | ------------------------ | ----- |
-| `GLADOS_COOKIE`  | 第二步组合的 Cookie      | ✅ 是 |
-| `PUSHPLUS_TOKEN` | 微信推送 Token（见下方） | ❌ 否 |
+| Name                 | Value                    | 必需  | 说明                   |
+| -------------------- | ------------------------ | ----- | ---------------------- |
+| `GLADOS_COOKIE`      | 第二步组合的 Cookie      | ✅ 是 | 签到凭证               |
+| `PUSHPLUS_TOKEN`     | 微信推送 Token           | ❌ 否 | PushPlus 微信推送      |
+| `SEND_KEY`           | Server酱 SendKey         | ❌ 否 | Server酱 微信公众号推送 |
+| `DINGTALK_TOKEN`     | 钉钉 access_token        | ❌ 否 | 钉钉群机器人推送       |
+| `TELEGRAM_BOT_TOKEN` | Telegram Bot Token       | ❌ 否 | Telegram 推送          |
+| `TELEGRAM_CHAT_ID`   | Telegram Chat ID         | ❌ 否 | Telegram 推送          |
+| `PUSH_LEVEL`         | `all` 或 `fail_only`     | ❌ 否 | 推送级别控制           |
+
+> 💡 至少配置一个推送渠道，否则签到结果只在 Actions 日志中可见。
 
 ---
 
-### 第四步：获取 PushPlus Token（可选）📱
+### 第四步：获取推送 Token（可选）📱
 
-如果你希望签到后收到**微信通知**，请配置 PushPlus：
+<details>
+<summary><b>PushPlus 微信推送（推荐）</b></summary>
 
 1. 访问 [https://www.pushplus.plus](https://www.pushplus.plus)
 2. 点击右上角 **登录**，使用微信扫码登录
@@ -328,6 +385,36 @@ else:
 ![获取 Token](images/pushplus-token.png)
 
 5. 将 Token 添加到 GitHub Secrets，Name 填 `PUSHPLUS_TOKEN`
+
+</details>
+
+<details>
+<summary><b>Telegram 推送</b></summary>
+
+1. 在 Telegram 中搜索 [@BotFather](https://t.me/BotFather)，发送 `/newbot` 创建机器人
+2. 获取 Bot Token（格式类似 `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`）
+3. 搜索 [@userinfobot](https://t.me/userinfobot) 获取你的 Chat ID
+4. 将 Token 和 Chat ID 分别添加到 GitHub Secrets 的 `TELEGRAM_BOT_TOKEN` 和 `TELEGRAM_CHAT_ID`
+
+</details>
+
+<details>
+<summary><b>Server酱推送</b></summary>
+
+1. 访问 [https://sct.ftqq.com](https://sct.ftqq.com) 注册登录
+2. 在 **Key** 页面复制你的 SendKey
+3. 将 SendKey 添加到 GitHub Secrets，Name 填 `SEND_KEY`
+
+</details>
+
+<details>
+<summary><b>钉钉机器人推送</b></summary>
+
+1. 在钉钉群中添加自定义机器人（群设置 → 智能群助手 → 添加机器人 → 自定义）
+2. 获取 Webhook 地址中的 `access_token` 参数
+3. 将 Token 添加到 GitHub Secrets，Name 填 `DINGTALK_TOKEN`
+
+</details>
 
 ---
 
@@ -474,13 +561,18 @@ pip install -r requirements.txt
 使用环境变量传递 Cookie 并直接运行 Python 脚本：
 
 ```bash
-# 配置 Cookie
+# 必填：配置 Cookie
 export GLADOS_COOKIE="koa:sess=xxxxxx; koa:sess.sig=yyyyyy"
 
-# 可选：配置推送
-export PUSH_LEVEL="all"
+# 可选：配置推送渠道（按需选择一个或多个）
+export PUSHPLUS_TOKEN="xxx"
+export SEND_KEY="xxx"
+export DINGTALK_TOKEN="xxx"
 export TELEGRAM_BOT_TOKEN="xxx"
 export TELEGRAM_CHAT_ID="yyy"
+
+# 可选：推送级别
+export PUSH_LEVEL="all"  # 或 "fail_only"
 
 # 执行签到
 python3 checkin.py
@@ -488,11 +580,17 @@ python3 checkin.py
 
 ### 第三步：设置定时任务 (Cron)
 
-通过 `crontab -e` 配置每天自动执行（例如每天早上 9:30）：
+通过 `crontab -e` 配置每天自动执行（例如每天早上 9:30 和晚上 21:30）：
 
 ```bash
+# 早签到 9:30
 30 9 * * * export GLADOS_COOKIE="koa:sess=xxx..."; cd /path/to/2026-glados-checkin && python3 checkin.py >> glados.log 2>&1
+
+# 晚签到 21:30
+30 21 * * * export GLADOS_COOKIE="koa:sess=xxx..."; cd /path/to/2026-glados-checkin && python3 checkin.py >> glados.log 2>&1
 ```
+
+> 💡 **提示**：如果配置了多个环境变量，建议写一个 shell 脚本来管理，避免 crontab 行过长。
 
 ---
 
@@ -502,7 +600,7 @@ python3 checkin.py
 
 ### 使用方法 (Flakes)
 
-在你的 [flake.nix](file://d:\workplace\2026-glados-checkin\flake.nix) 中引入本项目：
+在你的 `flake.nix` 中引入本项目：
 
 ```nix
 {
@@ -524,9 +622,11 @@ python3 checkin.py
             enable = true;
             cookie = "koa:sess=xxx; koa:sess.sig=yyy";
 
-            # 【可选】消息推送配置
+            # 【可选】消息推送配置（按需配置）
             pushLevel = "all"; # 或 "fail_only"
             pushplusToken = "xxx";
+            sendKey = "xxx";          # Server酱
+            dingtalkToken = "xxx";    # 钉钉
             telegramBotToken = "yyy";
             telegramChatId = "zzz";
           };
@@ -543,20 +643,47 @@ python3 checkin.py
 
 ## 📊 推送效果预览
 
-签到成功后，你会在微信收到类似这样的推送：
+签到成功后，你会收到类似这样的推送（以 Telegram/微信为例）：
 
 ```text
-👤 your@email.com
+🌤 下午好，这是您的资产简报
 
-当前积分: 46 (+20)
-剩余天数: 353 天
-签到结果: Bindweed! Bindweed!
+👤 182****44@163.com
 
-🎁 兑换选项:
-❌ 100分→10天 (差54分)
-❌ 200分→30天 (差154分)
-❌ 500分→100天 (差454分)
+━━━━━━ 📊 核心资产报告 ━━━━━━
+
+💰 当前积分: 46 (+20)
+⏳ 可用天数: 353 天  ✅ 储备充足
+📅 断粮日期: 2027-05-26
+✅ 签到结果: Checkin Repeats! Please Try Tomorrow
+🔥 连续签到: 15 天 (最佳: 30 天)
+💰 积分价值: 约 9 天会员
+
+━━━━━━ 🎁 资产增值路径 ━━━━━━
+
+████████ ✅ 可兑换10天 [可兑换]
+██████░░ 30天 [积攒中 还差154分]
+██░░░░░░ 100天 [积攒中 还差454分]
+
+🎯 最优方案: 200分兑换30天 (性价比0.15)
+   预计 2026-06-15 达成 (还需154分, 日均+20分)
+
+📈 近7天趋势: +10 +20 +18 +20 +15 +20 (共+103)
+█           █
+█     █     █
+█ █   █ █   █
+06-01 06-02 06-03 06-04 06-05 06-06
+
+⏰ 下次签到: 今天 21:30
+🕒 更新于: 15:30:00
+
+━━━━━━ 🌤 生活资讯 ━━━━━━
+
+🌤 杭州: Clear +28°C
+📖 "世界上只有一种英雄主义，就是看清生活的真相之后依然热爱生活。" —— 罗曼·罗兰《米开朗基罗传》
 ```
+
+> 💡 实际推送内容会根据你的积分、会员状态和历史数据自动调整。
 
 ---
 
@@ -658,6 +785,8 @@ GitHub API 要求必须指定分支名。
 
 大约 30 天。过期后重新按第二步获取新 Cookie，更新 Secret 即可。
 
+> 💡 本项目支持 **Cookie 过期自动告警**：如果检测到 Cookie 失效，会通过已配置的推送渠道发送告警通知。
+
 </details>
 
 <details>
@@ -669,14 +798,17 @@ GitHub API 要求必须指定分支名。
 cookie1&cookie2&cookie3
 ```
 
+签到后会收到多账号汇总报告，方便一目了然。
+
 </details>
 
 <details>
-<summary><b>Q: 没有收到微信推送怎么办？</b></summary>
+<summary><b>Q: 没有收到推送通知怎么办？</b></summary>
 
-1. 检查 `PUSHPLUS_TOKEN` 是否配置正确
-2. 在 PushPlus 网站测试发送功能是否正常
-3. 查看 Actions 运行日志是否有错误
+1. 检查对应的 Secret 是否配置正确（`PUSHPLUS_TOKEN` / `SEND_KEY` / `DINGTALK_TOKEN` / `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID`）
+2. 在对应平台测试推送功能是否正常
+3. 查看 Actions 运行日志是否有推送错误信息
+4. 检查 `PUSH_LEVEL` 设置：如果是 `fail_only`，签到成功时不会推送
 
 </details>
 
@@ -689,6 +821,17 @@ cookie1&cookie2&cookie3
 
 </details>
 
+<details>
+<summary><b>Q: 天气显示的城市不对，怎么改？</b></summary>
+
+默认天气城市为杭州。如需修改，编辑 `checkin.py` 中的 `WEATHER_CITY` 变量即可：
+
+```python
+WEATHER_CITY = "你的城市"  # 例如 "北京"、"上海"、"深圳"
+```
+
+</details>
+
 ---
 
 ## ⚠️ 为什么 GitHub Actions 定时不可靠？
@@ -696,14 +839,6 @@ cookie1&cookie2&cookie3
 ### 问题背景
 
 从 2025 年底开始，GitHub 对 **Actions 的定时任务（schedule trigger）** 实施了更严格的限制，影响了大量新仓库和不活跃仓库。
-
-### 具体表现
-
-| 现象            | 说明                             |
-| --------------- | -------------------------------- |
-| ✅ 手动运行正常 | 点击 "Run workflow" 可以成功执行 |
-| ❌ 定时不执行   | 到了设定时间没有任何运行记录     |
-| ⏳ 长时间无反应 | 等待数天仍不会自动触发           |
 
 ### 根本原因
 
@@ -721,22 +856,22 @@ cookie1&cookie2&cookie3
 | GitHub Actions + keep-alive | 完全在 GitHub 内     | 需等待 1-2 周恢复期 | ⭐⭐       |
 | 每天手动触发                | 简单直接             | 无法自动化          | ⭐         |
 
-### 已采取的措施
-
-本项目已包含 `keep-alive.yml` 文件，每天自动更新时间戳以维持仓库活跃度。但这对**新仓库**仍然需要 1-2 周的积累期。
-
 **因此强烈推荐使用 cron-job.org！** [🔝 查看配置教程](#-推荐方案-cron-joborg-配置定时)
 
 ---
 
 ## 📂 项目文件
 
-| 文件                                                                         | 说明                |
-| ---------------------------------------------------------------------------- | ------------------- |
-| [checkin.py](file://d:\workplace\2026-glados-checkin\checkin.py)             | 核心签到脚本        |
-| `.github/workflows/checkin.yml`                                              | GitHub Actions 配置 |
-| [requirements.txt](file://d:\workplace\2026-glados-checkin\requirements.txt) | Python 依赖         |
-| `images/`                                                                    | 教程截图            |
+| 文件                    | 说明                                        |
+| ----------------------- | ------------------------------------------- |
+| `checkin.py`            | 核心签到脚本（签到、数据统计、多渠道推送）  |
+| `.github/workflows/checkin.yml` | GitHub Actions 工作流配置          |
+| `requirements.txt`      | Python 依赖（仅 requests）                  |
+| `flake.nix`             | Nix Flake 配置                              |
+| `flake.lock`            | Nix Flake 锁定文件                          |
+| `glados-checkin.nix`    | NixOS 服务模块定义                          |
+| `SYNC_GUIDE.md`         | Fork 用户同步上游更新指南                   |
+| `images/`               | 教程截图                                    |
 
 ---
 
@@ -745,10 +880,18 @@ cookie1&cookie2&cookie3
 - 📝 **提 Issue**：遇到问题请提 Issue，作者很乐意帮助技术新手！
 - ⭐ **Star**：如果对你有帮助，请点个 Star 支持一下
 - 🍴 **Fork**：欢迎 Fork 并贡献代码
+- 🔄 **同步更新**：Fork 用户可参考 [SYNC_GUIDE.md](SYNC_GUIDE.md) 同步上游最新代码
 
 ---
 
 ## 📝 更新日志
+
+### v1.2.0 (2026-06-06) ✨ 功能增强
+
+- ✅ 新增 Server酱推送支持（免费推送到微信公众号）
+- ✅ 新增钉钉机器人推送支持
+- ✅ 移除 GitHub Actions 自带 schedule，改用 cron-job.org 触发
+- ✅ 新增 SYNC_GUIDE.md 同步上游更新指南
 
 ### v1.1.0 (2026-01-25) 🔥 重大修复
 
@@ -756,7 +899,7 @@ cookie1&cookie2&cookie3
 
 **原因**：GLaDOS 官方更新了 API，签到 token 必须从 `glados.one` 改为 `glados.cloud`。
 
-**修复**：更新 [checkin.py](file://d:\workplace\2026-glados-checkin\checkin.py) 中的 token 参数。
+**修复**：更新 `checkin.py` 中的 token 参数。
 
 **排查过程**：
 
