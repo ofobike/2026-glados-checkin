@@ -24,6 +24,15 @@ from datetime import datetime, timedelta
 if sys.platform.startswith('win'):
     sys.stdout.reconfigure(encoding='utf-8')
 
+# ================= 时区配置 =================
+from datetime import timezone
+
+BJT = timezone(timedelta(hours=8))  # 北京时间 UTC+8
+
+def now_bjt():
+    """获取北京时间"""
+    return datetime.now(BJT)
+
 # ================= 配置 =================
 
 # 域名优先级：Cloud 第一
@@ -42,7 +51,7 @@ HEADERS = {
 # ================= 工具函数 =================
 
 def log(msg):
-    ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    ts = now_bjt().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{ts}] {msg}")
 
 def mask_email(email):
@@ -66,7 +75,7 @@ def progress_bar(current, target, width=8):
 
 def get_greeting():
     """根据时间返回问候语"""
-    hour = datetime.now().hour
+    hour = now_bjt().hour
     if hour < 6:
         return "🌙 深夜好"
     elif hour < 9:
@@ -299,7 +308,7 @@ def format_dingtalk_message(g, msg, checkin_ok):
     # 计算断粮日期
     try:
         days = int(g.left_days)
-        expire_date = (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%d')
+        expire_date = (now_bjt() + timedelta(days=days)).strftime('%Y-%m-%d')
     except:
         days = '?'
         expire_date = '?'
@@ -333,7 +342,7 @@ def format_dingtalk_message(g, msg, checkin_ok):
     progress_text = "\n".join(progress_lines) if progress_lines else "暂无兑换计划"
 
     # 时间
-    now = datetime.now().strftime('%H:%M:%S')
+    now = now_bjt().strftime('%H:%M:%S')
 
     # 组装消息
     lines = [
@@ -451,13 +460,13 @@ def main():
         # Server酱（HTML）
         if sc_key:
             html_content = "".join(results_html)
-            html_content += f"<br><small>时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small>"
+            html_content += f"<br><small>时间: {now_bjt().strftime('%Y-%m-%d %H:%M:%S')}</small>"
             serverchan(sc_key, title, html_content)
 
         # Telegram（HTML）
         if tg_token and tg_chat_id:
             html_content = "".join(results_html)
-            html_content += f"<br><small>时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small>"
+            html_content += f"<br><small>时间: {now_bjt().strftime('%Y-%m-%d %H:%M:%S')}</small>"
             telegram_push(tg_token, tg_chat_id, title, html_content)
 
         # 钉钉（纯文本，美观排版）
