@@ -6,7 +6,8 @@
 功能：
 - 全自动签到
 - 精准获取当前积分 (Points)
-- PushPlus 微信推送（包含积分、剩余天数、签到结果）
+- Server酱微信推送、钉钉机器人推送
+- Cookie 过期自动告警
 - 智能多域名切换 (优先 glados.cloud)
 - 支持 Cookie-Editor 导出格式
 """
@@ -244,31 +245,59 @@ def telegram_push(token, chat_id, title, content):
     except Exception as e:
         log(f"❌ Telegram 推送失败: {e}")
 
+def send_alert(title, content):
+    """发送过期/异常告警（仅推送到钉钉和Server酱）"""
+    sc_key = os.environ.get("SEND_KEY")
+    ding_token = os.environ.get("DINGTALK_TOKEN")
+    if sc_key:
+        serverchan(sc_key, title, content)
+    if ding_token:
+        dingtalk(ding_token, title, content)
+
 def main():
     log("🚀 2026 GLaDOS Checkin Starting...")
     cookies = get_cookies()
-    if not cookies: sys.exit(1)
-    
+    if not cookies:
+        send_alert("⚠️ GLaDOS 配置异常", "未配置 GLADOS_COOKIE，请检查 GitHub Secrets。")
+        sys.exit(1)
+
     results = []
     success_cnt = 0
-    
+    expired_cookies = []
+
     for i, cookie in enumerate(cookies, 1):
         g = GLaDOS(cookie)
-        
+
         # 1. Checkin
         res = g.checkin()
-        msg = res.get('message', 'Failure') if res else "Network Error"
-        
+
+        # 检测 Cookie 是否过期/无效
+        if res is None:
+            msg = "Cookie 已过期或网络异常"
+            log(f"❌ 用户 {i}: 所有域名请求失败，Cookie 可能已过期")
+            expired_cookies.append(i)
+        elif 'Unauthorized' in str(res) or 'please checkin via' in str(res):
+            msg = res.get('message', 'Unauthorized')
+            log(f"❌ 用户 {i}: Cookie 已过期 - {msg}")
+            expired_cookies.append(i)
+        else:
+            msg = res.get('message', 'Failure')
+
         # 2. Get Info (Refresh data)
-        g.get_status()
+        status_ok = g.get_status()
+        if not status_ok and res is not None:
+            log(f"⚠️ 用户 {i}: 获取状态失败，Cookie 可能已过期")
+            if i not in expired_cookies:
+                expired_cookies.append(i)
+
         g.get_points()
-        
+
         # 3. Log
         status_icon = "✅" if "Checkin" in msg else "⚠️"
         log(f"用户: {g.email} | 积分: {g.points} | 天数: {g.left_days} | 结果: {msg}")
-        
+
         if "Checkin" in msg: success_cnt += 1
-        
+
         # 4. Result Formatting
         results.append(f"""
 <div style="border:2px solid #333; padding:15px; margin-bottom:15px; border-radius:10px; background:#fff;">
@@ -284,9 +313,22 @@ def main():
 </div>
 """)
 
+    # Cookie 过期告警
+    if expired_cookies:
+        alert_content = (
+            f"检测到 {len(expired_cookies)} 个账号的 Cookie 已过期或无效！\n\n"
+            f"过期账号编号: {', '.join(str(i) for i in expired_cookies)}\n\n"
+            f"请尽快处理：\n"
+            f"1. 打开 https://glados.cloud 登录\n"
+            f"2. 用 Cookie-Editor 复制新的 Cookie\n"
+            f"3. 去 GitHub Secrets 更新 GLADOS_COOKIE"
+        )
+        log(f"⚠️ 检测到 {len(expired_cookies)} 个 Cookie 过期，发送告警...")
+        send_alert("⚠️ GLaDOS Cookie 已过期", alert_content)
+
     # Push
     push_level = os.environ.get("PUSH_LEVEL", "all").lower()
-    
+
     if push_level == "fail_only" and success_cnt == len(cookies):
         log("⏭️ 根据 PUSH_LEVEL=fail_only 设置，所有账号签到成功，跳过推送")
         return
