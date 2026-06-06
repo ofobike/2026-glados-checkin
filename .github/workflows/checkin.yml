@@ -26,9 +26,10 @@ jobs:
         timeout-minutes: 5
         env:
           GLADOS_COOKIE: ${{ secrets.GLADOS_COOKIE }}
-
           SEND_KEY: ${{ secrets.SEND_KEY }}
           DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
 
       - name: Retry on Failure
         if: failure()
@@ -39,6 +40,7 @@ jobs:
         timeout-minutes: 5
         env:
           GLADOS_COOKIE: ${{ secrets.GLADOS_COOKIE }}
-
           SEND_KEY: ${{ secrets.SEND_KEY }}
           DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
