@@ -17,7 +17,8 @@ import json
 import os
 import sys
 import time
-from datetime import datetime
+import re
+from datetime import datetime, timedelta
 
 # Fix Windows Unicode Output
 if sys.platform.startswith('win'):
@@ -43,6 +44,43 @@ HEADERS = {
 def log(msg):
     ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{ts}] {msg}")
+
+def mask_email(email):
+    """邮箱脱敏: 182****44@163.com"""
+    if '@' not in email or email == '?':
+        return email
+    user, domain = email.split('@', 1)
+    if len(user) <= 3:
+        return user[0] + '***@' + domain
+    return user[:3] + '***' + user[-2:] + '@' + domain
+
+def progress_bar(current, target, width=8):
+    """生成进度条: █████░░░ 62%"""
+    if target <= 0:
+        return '█' * width + ' 100%'
+    ratio = min(current / target, 1.0)
+    filled = round(ratio * width)
+    empty = width - filled
+    percent = round(ratio * 100)
+    return '█' * filled + '░' * empty + f' {percent}%'
+
+def get_greeting():
+    """根据时间返回问候语"""
+    hour = datetime.now().hour
+    if hour < 6:
+        return "🌙 深夜好"
+    elif hour < 9:
+        return "🌅 早上好"
+    elif hour < 12:
+        return "☀️ 上午好"
+    elif hour < 14:
+        return "🌤 中午好"
+    elif hour < 18:
+        return "🌇 下午好"
+    elif hour < 22:
+        return "🌆 晚上好"
+    else:
+        return "🌙 夜深了"
 
 def extract_cookie(raw: str):
     """提取 Cookie，支持 Cookie-Editor 冒号格式"""
@@ -88,6 +126,7 @@ class GLaDOS:
         self.points_change = "?"
         self.exchange_info = ""
         self.plan = "?"
+        self.plans_list = []  # 存储兑换计划列表
         
     def req(self, method, path, data=None):
         """带自动域名切换的请求"""
@@ -142,13 +181,17 @@ class GLaDOS:
             plans = res.get('plans', {})
             pts = int(self.points)
             exchange_lines = []
+            self.plans_list = []
             for plan_id, plan_data in plans.items():
                 need = plan_data['points']
                 days = plan_data['days']
-                if pts >= need:
+                diff = need - pts
+                if diff <= 0:
                     exchange_lines.append(f"✅ {need}分→{days}天 (可兑换)")
+                    self.plans_list.append({'need': need, 'days': days, 'diff': 0, 'ready': True})
                 else:
-                    exchange_lines.append(f"❌ {need}分→{days}天 (差{need-pts}分)")
+                    exchange_lines.append(f"❌ {need}分→{days}天 (差{diff}分)")
+                    self.plans_list.append({'need': need, 'days': days, 'diff': diff, 'ready': False})
             self.exchange_info = "<br>".join(exchange_lines)
             return True
         return False
@@ -163,7 +206,6 @@ def serverchan(send_key, title, content):
     """Server酱推送（免费推送到微信公众号）"""
     if not send_key: return
     try:
-        import re
         url = f"https://sctapi.ftqq.com/{send_key}.send"
         # Server酱用 desp 参数传内容，支持 Markdown
         desp = content.replace("<br>", "\n")
@@ -180,7 +222,6 @@ def dingtalk(token, title, content):
     """钉钉机器人推送"""
     if not token: return
     try:
-        import re
         url = f"https://oapi.dingtalk.com/robot/send?access_token={token}"
         # 清理 HTML 标签，保留纯文本
         text = content.replace("<br>", "\n")
@@ -202,7 +243,6 @@ def dingtalk(token, title, content):
 def telegram_push(token, chat_id, title, content):
     if not token or not chat_id: return
     try:
-        import re
         url = f"https://api.telegram.org/bot{token}/sendMessage"
         # Convert HTML to be Telegram-compatible
         text = f"<b>{title}</b>\n\n{content}"
@@ -254,6 +294,69 @@ def send_alert(title, content):
     if ding_token:
         dingtalk(ding_token, title, content)
 
+def format_dingtalk_message(g, msg, checkin_ok):
+    """格式化钉钉推送消息（纯文本，美观排版）"""
+    # 计算断粮日期
+    try:
+        days = int(g.left_days)
+        expire_date = (datetime.now() + timedelta(days=days)).strftime('%Y-%m-%d')
+    except:
+        days = '?'
+        expire_date = '?'
+
+    # 状态判断
+    if isinstance(days, int):
+        if days > 30:
+            day_status = "✅ 储备充足"
+        elif days > 7:
+            day_status = "⚠️ 即将到期"
+        else:
+            day_status = "🔴 紧急续期"
+    else:
+        day_status = "❓ 未知"
+
+    # 签到结果
+    checkin_icon = "✅" if checkin_ok else "❌"
+
+    # 构建进度条
+    progress_lines = []
+    for p in g.plans_list:
+        if p['ready']:
+            bar = progress_bar(p['need'], p['need'])
+            label = f"✅ 可兑换 {p['days']}天"
+            progress_lines.append(f"{bar} [{label}]")
+        else:
+            bar = progress_bar(int(g.points) if g.points != '?' else 0, p['need'])
+            label = f"积攒中 还差{p['diff']}分"
+            progress_lines.append(f"{bar} {p['days']}天 [{label}]")
+
+    progress_text = "\n".join(progress_lines) if progress_lines else "暂无兑换计划"
+
+    # 时间
+    now = datetime.now().strftime('%H:%M:%S')
+
+    # 组装消息
+    lines = [
+        f"{get_greeting()}，这是您的资产简报",
+        "",
+        f"👤 账号: {mask_email(g.email)}",
+        "",
+        "━━━━━━ 📊 核心资产报告 ━━━━━━",
+        "",
+        f"💰 当前积分: {g.points} ({g.points_change})",
+        f"⏳ 可用天数: {days} 天  {day_status}",
+        f"📅 断粮日期: {expire_date}",
+        f"{checkin_icon} 签到结果: {msg}",
+        "",
+        "━━━━━━ 🎁 资产增值路径 ━━━━━━",
+        "",
+        progress_text,
+        "",
+        f"🕒 更新于: {now}",
+    ]
+
+    return "\n".join(lines)
+
 def main():
     log("🚀 2026 GLaDOS Checkin Starting...")
     cookies = get_cookies()
@@ -261,7 +364,8 @@ def main():
         send_alert("⚠️ GLaDOS 配置异常", "未配置 GLADOS_COOKIE，请检查 GitHub Secrets。")
         sys.exit(1)
 
-    results = []
+    results_html = []      # HTML 格式（Server酱、Telegram）
+    results_dingtalk = []  # 纯文本格式（钉钉）
     success_cnt = 0
     expired_cookies = []
 
@@ -293,13 +397,13 @@ def main():
         g.get_points()
 
         # 3. Log
-        status_icon = "✅" if "Checkin" in msg else "⚠️"
+        checkin_ok = "Checkin" in msg
         log(f"用户: {g.email} | 积分: {g.points} | 天数: {g.left_days} | 结果: {msg}")
 
-        if "Checkin" in msg: success_cnt += 1
+        if checkin_ok: success_cnt += 1
 
-        # 4. Result Formatting
-        results.append(f"""
+        # 4. HTML 格式（Server酱、Telegram）
+        results_html.append(f"""
 <div style="border:2px solid #333; padding:15px; margin-bottom:15px; border-radius:10px; background:#fff;">
     <h3 style="margin:0 0 15px 0; color:#333; border-bottom:2px solid #333; padding-bottom:8px;">👤 {g.email}</h3>
     <p style="margin:8px 0; color:#000; font-size:16px;"><b>当前积分:</b> <span style="color:#e74c3c; font-size:22px; font-weight:bold;">{g.points}</span> <span style="color:#27ae60; font-weight:bold;">({g.points_change})</span></p>
@@ -312,6 +416,9 @@ def main():
     </div>
 </div>
 """)
+
+        # 5. 钉钉纯文本格式
+        results_dingtalk.append(format_dingtalk_message(g, msg, checkin_ok))
 
     # Cookie 过期告警
     if expired_cookies:
@@ -340,15 +447,23 @@ def main():
 
     if (tg_token and tg_chat_id) or sc_key or ding_token:
         title = f"GLaDOS签到: 成功{success_cnt}/{len(cookies)}"
-        content = "".join(results)
-        content += f"<br><small>时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small>"
 
-        if tg_token and tg_chat_id:
-            telegram_push(tg_token, tg_chat_id, title, content)
+        # Server酱（HTML）
         if sc_key:
-            serverchan(sc_key, title, content)
+            html_content = "".join(results_html)
+            html_content += f"<br><small>时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small>"
+            serverchan(sc_key, title, html_content)
+
+        # Telegram（HTML）
+        if tg_token and tg_chat_id:
+            html_content = "".join(results_html)
+            html_content += f"<br><small>时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small>"
+            telegram_push(tg_token, tg_chat_id, title, html_content)
+
+        # 钉钉（纯文本，美观排版）
         if ding_token:
-            dingtalk(ding_token, title, content)
+            dingtalk_content = "\n\n".join(results_dingtalk)
+            dingtalk(ding_token, title, dingtalk_content)
 
 if __name__ == '__main__':
     main()
