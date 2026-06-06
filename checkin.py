@@ -196,12 +196,15 @@ WEATHER_CITY = "杭州"
 def get_weather():
     """获取天气信息"""
     try:
-        resp = requests.get(f"https://wttr.in/{WEATHER_CITY}?format=%C+%t&lang=zh", timeout=5)
+        resp = requests.get(f"https://wttr.in/{WEATHER_CITY}?format=%C+%t&lang=zh", timeout=10)
         if resp.status_code == 200:
             weather = resp.text.strip()
-            return f"🌤 {WEATHER_CITY}: {weather}"
-    except:
-        pass
+            if weather and '?' not in weather:
+                return f"🌤 {WEATHER_CITY}: {weather}"
+        else:
+            log(f"⚠️ 天气 API 返回: {resp.status_code}")
+    except Exception as e:
+        log(f"⚠️ 天气 API 请求失败: {e}")
     return None
 
 # ================= 每日一句 =================
@@ -209,20 +212,24 @@ def get_weather():
 def get_quote():
     """获取每日一句（调用免费 API）"""
     try:
-        resp = requests.get("https://v1.hitokoto.cn/?c=d&c=i&c=k&encode=json", timeout=5)
+        resp = requests.get("https://v1.hitokoto.cn/?c=d&c=i&c=k&encode=json", timeout=10)
         if resp.status_code == 200:
             data = resp.json()
             content = data.get('hitokoto', '')
             source = data.get('from', '')
             author = data.get('from_who', '')
+            if not content:
+                return None
             if author and source:
                 return f'📖 "{content}" —— {author}《{source}》'
             elif source:
                 return f'📖 "{content}" —— 《{source}》'
             else:
                 return f'📖 "{content}"'
-    except:
-        pass
+        else:
+            log(f"⚠️ 一言 API 返回: {resp.status_code}")
+    except Exception as e:
+        log(f"⚠️ 一言 API 请求失败: {e}")
     return None
 
 def extract_cookie(raw: str):
@@ -615,13 +622,14 @@ def main():
         if summary:
             text_content += summary
 
-        # 天气 + 每日一句（只在所有账号签到成功时显示）
+        # 天气 + 每日一句（始终显示）
         footer_parts = []
-        if success_cnt == len(cookies):
-            weather = get_weather()
-            if weather:
-                footer_parts.append(weather)
-            footer_parts.append(get_quote())
+        weather = get_weather()
+        if weather:
+            footer_parts.append(weather)
+        quote = get_quote()
+        if quote:
+            footer_parts.append(quote)
         if footer_parts:
             text_content += "\n\n━━━━━━ 🌤 生活资讯 ━━━━━━\n\n" + "\n".join(footer_parts)
 
