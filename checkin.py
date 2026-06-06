@@ -167,6 +167,23 @@ def pushplus(token, title, content):
     except:
         log("❌ PushPlus 推送失败")
 
+def serverchan(send_key, title, content):
+    """Server酱推送（免费推送到微信公众号）"""
+    if not send_key: return
+    try:
+        import re
+        url = f"https://sctapi.ftqq.com/{send_key}.send"
+        # Server酱用 desp 参数传内容，支持 Markdown
+        desp = content.replace("<br>", "\n")
+        desp = re.sub(r"<[^>]+>", "", desp)  # 去除所有 HTML 标签
+        resp = requests.post(url, data={'title': title, 'desp': desp}, timeout=10)
+        if resp.status_code == 200:
+            log("✅ Server酱推送成功")
+        else:
+            log(f"❌ Server酱推送失败: {resp.status_code}")
+    except Exception as e:
+        log(f"❌ Server酱推送失败: {e}")
+
 def telegram_push(token, chat_id, title, content):
     if not token or not chat_id: return
     try:
@@ -263,16 +280,19 @@ def main():
     ptoken = os.environ.get("PUSHPLUS_TOKEN")
     tg_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     tg_chat_id = os.environ.get("TELEGRAM_CHAT_ID")
+    sc_key = os.environ.get("SEND_KEY")
     
-    if ptoken or (tg_token and tg_chat_id):
+    if ptoken or (tg_token and tg_chat_id) or sc_key:
         title = f"GLaDOS签到: 成功{success_cnt}/{len(cookies)}"
         content = "".join(results)
         content += f"<br><small>时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small>"
-        
+
         if ptoken:
             pushplus(ptoken, title, content)
         if tg_token and tg_chat_id:
             telegram_push(tg_token, tg_chat_id, title, content)
+        if sc_key:
+            serverchan(sc_key, title, content)
 
 if __name__ == '__main__':
     main()
