@@ -158,15 +158,6 @@ class GLaDOS:
 
 # ================= 主程序 =================
 
-def pushplus(token, title, content):
-    if not token: return
-    try:
-        url = "http://www.pushplus.plus/send"
-        requests.get(url, params={'token': token, 'title': title, 'content': content, 'template': 'html'}, timeout=5)
-        log("✅ PushPlus 推送成功")
-    except:
-        log("❌ PushPlus 推送失败")
-
 def serverchan(send_key, title, content):
     """Server酱推送（免费推送到微信公众号）"""
     if not send_key: return
@@ -300,19 +291,16 @@ def main():
         log("⏭️ 根据 PUSH_LEVEL=fail_only 设置，所有账号签到成功，跳过推送")
         return
 
-    ptoken = os.environ.get("PUSHPLUS_TOKEN")
     tg_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     tg_chat_id = os.environ.get("TELEGRAM_CHAT_ID")
     sc_key = os.environ.get("SEND_KEY")
     ding_token = os.environ.get("DINGTALK_TOKEN")
 
-    if ptoken or (tg_token and tg_chat_id) or sc_key or ding_token:
+    if (tg_token and tg_chat_id) or sc_key or ding_token:
         title = f"GLaDOS签到: 成功{success_cnt}/{len(cookies)}"
         content = "".join(results)
         content += f"<br><small>时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small>"
 
-        if ptoken:
-            pushplus(ptoken, title, content)
         if tg_token and tg_chat_id:
             telegram_push(tg_token, tg_chat_id, title, content)
         if sc_key:
