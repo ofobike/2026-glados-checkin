@@ -21,6 +21,13 @@ jobs:
       - name: Install Dependencies
         run: pip install -r requirements.txt
 
+      - name: Restore Data Cache
+        uses: actions/cache@v4
+        with:
+          path: glados_data.json
+          key: glados-data-${{ github.run_id }}
+          restore-keys: glados-data-
+
       - name: Run Checkin
         run: python checkin.py
         timeout-minutes: 5

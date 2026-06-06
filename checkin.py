@@ -6,10 +6,11 @@
 功能：
 - 全自动签到
 - 精准获取当前积分 (Points)
-- Server酱微信推送、钉钉机器人推送
+- Server酱/钉钉/Telegram 多渠道推送
+- 积分趋势、连续签到、价值估算
+- 天气预报、每日一句
 - Cookie 过期自动告警
 - 智能多域名切换 (优先 glados.cloud)
-- 支持 Cookie-Editor 导出格式
 """
 
 import requests
@@ -18,7 +19,9 @@ import os
 import sys
 import time
 import re
+import random
 from datetime import datetime, timedelta
+from pathlib import Path
 
 # Fix Windows Unicode Output
 if sys.platform.startswith('win'):
@@ -90,6 +93,158 @@ def get_greeting():
         return "🌆 晚上好"
     else:
         return "🌙 夜深了"
+
+# ================= 数据持久化 =================
+
+DATA_FILE = Path(__file__).parent / "glados_data.json"
+
+def load_data():
+    """加载历史数据"""
+    if DATA_FILE.exists():
+        try:
+            return json.loads(DATA_FILE.read_text(encoding='utf-8'))
+        except:
+            pass
+    return {"points_history": {}, "checkin_streak": {}}
+
+def save_data(data):
+    """保存历史数据"""
+    DATA_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+
+# ================= 积分趋势 =================
+
+def record_points(data, email, points):
+    """记录当天积分"""
+    today = now_bjt().strftime('%Y-%m-%d')
+    if email not in data["points_history"]:
+        data["points_history"][email] = []
+    history = data["points_history"][email]
+    # 更新或添加今天的记录
+    if history and history[-1]["date"] == today:
+        history[-1]["points"] = points
+    else:
+        history.append({"date": today, "points": points})
+    # 只保留最近30天
+    data["points_history"][email] = history[-30:]
+
+def format_trend(data, email):
+    """格式化积分趋势（近7天）"""
+    history = data.get("points_history", {}).get(email, [])
+    if len(history) < 2:
+        return "📊 趋势: 数据积累中 (至少需要2天数据)"
+    recent = history[-7:]
+    if len(recent) < 2:
+        return "📊 趋势: 数据积累中"
+    changes = []
+    for i in range(1, len(recent)):
+        diff = recent[i]["points"] - recent[i-1]["points"]
+        if diff > 0:
+            changes.append(f"+{diff}")
+        else:
+            changes.append(str(diff))
+    total_change = recent[-1]["points"] - recent[0]["points"]
+    trend_icon = "📈" if total_change > 0 else "📉" if total_change < 0 else "➡️"
+    return f"{trend_icon} 近{len(recent)}天趋势: {' '.join(changes)} (共{'+' if total_change>=0 else ''}{total_change})"
+
+# ================= 连续签到 =================
+
+def update_streak(data, email, checkin_ok):
+    """更新连续签到天数"""
+    today = now_bjt().strftime('%Y-%m-%d')
+    if email not in data["checkin_streak"]:
+        data["checkin_streak"][email] = {"count": 0, "last_date": "", "best": 0}
+    streak = data["checkin_streak"][email]
+    if checkin_ok:
+        yesterday = (now_bjt() - timedelta(days=1)).strftime('%Y-%m-%d')
+        if streak["last_date"] == yesterday:
+            streak["count"] += 1
+        elif streak["last_date"] != today:
+            streak["count"] = 1
+        streak["last_date"] = today
+        streak["best"] = max(streak["best"], streak["count"])
+    else:
+        streak["count"] = 0
+    return streak
+
+def format_streak(streak):
+    """格式化连续签到信息"""
+    count = streak.get("count", 0)
+    best = streak.get("best", 0)
+    if count >= 7:
+        icon = "🔥"
+    elif count >= 3:
+        icon = "⭐"
+    else:
+        icon = "📅"
+    return f"{icon} 连续签到: {count} 天 (最佳: {best} 天)"
+
+# ================= 签到价值估算 =================
+
+def calc_value(points):
+    """估算签到价值（基于 GLaDOS 定价）"""
+    # GLaDOS 定价: 100分=10天, 200分=30天, 500分=100天
+    # 按最优比例: 500分=100天 → 1分=0.2天
+    if not isinstance(points, int) or points <= 0:
+        return "💰 价值: 暂无数据"
+    days_equivalent = points * 0.2
+    return f"💰 积分价值: 约 {days_equivalent:.0f} 天会员"
+
+# ================= 天气 =================
+
+WEATHER_CITY = "杭州"
+
+def get_weather():
+    """获取天气信息"""
+    try:
+        resp = requests.get(f"https://wttr.in/{WEATHER_CITY}?format=%C+%t&lang=zh", timeout=5)
+        if resp.status_code == 200:
+            weather = resp.text.strip()
+            return f"🌤 {WEATHER_CITY}: {weather}"
+    except:
+        pass
+    return None
+
+# ================= 每日一句 =================
+
+QUOTES = [
+    ""生老病死，八苦之四，众生必经。" —— 魔道祖师",
+    ""道在日新，艺亦须日新。" —— 徐悲鸿",
+    ""天行健，君子以自强不息。" —— 周易",
+    ""路漫漫其修远兮，吾将上下而求索。" —— 屈原",
+    ""不积跬步，无以至千里。" —— 荀子",
+    ""千里之行，始于足下。" —— 老子",
+    ""学而不思则罔，思而不学则殆。" —— 孔子",
+    ""知之者不如好之者，好之者不如乐之者。" —— 孔子",
+    ""己所不欲，勿施于人。" —— 论语",
+    ""温故而知新，可以为师矣。" —— 论语",
+    ""三人行，必有我师焉。" —— 论语",
+    ""工欲善其事，必先利其器。" —— 论语",
+    ""业精于勤，荒于嬉；行成于思，毁于随。" —— 韩愈",
+    ""书山有路勤为径，学海无涯苦作舟。" —— 韩愈",
+    ""海纳百川，有容乃大。" —— 林则徐",
+    ""天下兴亡，匹夫有责。" —— 顾炎武",
+    ""生于忧患，死于安乐。" —— 孟子",
+    ""穷则独善其身，达则兼济天下。" —— 孟子",
+    ""君子坦荡荡，小人长戚戚。" —— 论语",
+    ""岁寒，然后知松柏之后凋也。" —— 论语",
+    ""吾日三省吾身。" —— 曾子",
+    ""满招损，谦受益。" —— 尚书",
+    ""玉不琢，不成器；人不学，不知道。" —— 礼记",
+    ""博学之，审问之，慎思之，明辨之，笃行之。" —— 中庸",
+    ""纸上得来终觉浅，绝知此事要躬行。" —— 陆游",
+    ""问渠那得清如许，为有源头活水来。" —— 朱熹",
+    ""宝剑锋从磨砺出，梅花香自苦寒来。" —— 警世贤文",
+    ""千磨万击还坚劲，任尔东西南北风。" —— 郑燮",
+    ""落红不是无情物，化作春泥更护花。" —— 龚自珍",
+    ""横眉冷对千夫指，俯首甘为孺子牛。" —— 鲁迅",
+]
+
+def get_quote():
+    """获取每日一句"""
+    # 用日期作为种子，保证同一天每次运行都是同一句
+    day_seed = int(now_bjt().strftime('%Y%m%d'))
+    quote = QUOTES[day_seed % len(QUOTES)]
+    return f"📖 {quote}"
 
 def extract_cookie(raw: str):
     """提取 Cookie，支持 Cookie-Editor 冒号格式"""
@@ -280,8 +435,8 @@ def send_alert(title, content):
     if ding_token:
         dingtalk(ding_token, title, content)
 
-def format_dingtalk_message(g, msg, checkin_ok):
-    """格式化钉钉推送消息（纯文本，美观排版）"""
+def format_dingtalk_message(g, msg, checkin_ok, data, streak):
+    """格式化推送消息（纯文本，美观排版）"""
     # 计算断粮日期
     try:
         days = int(g.left_days)
@@ -318,6 +473,19 @@ def format_dingtalk_message(g, msg, checkin_ok):
 
     progress_text = "\n".join(progress_lines) if progress_lines else "暂无兑换计划"
 
+    # 积分趋势
+    trend = format_trend(data, g.email)
+
+    # 连续签到
+    streak_text = format_streak(streak)
+
+    # 签到价值
+    try:
+        pts = int(g.points)
+    except:
+        pts = 0
+    value_text = calc_value(pts)
+
     # 时间
     now = now_bjt().strftime('%H:%M:%S')
 
@@ -333,14 +501,32 @@ def format_dingtalk_message(g, msg, checkin_ok):
         f"⏳ 可用天数: {days} 天  {day_status}",
         f"📅 断粮日期: {expire_date}",
         f"{checkin_icon} 签到结果: {msg}",
+        f"{streak_text}",
+        f"{value_text}",
         "",
         "━━━━━━ 🎁 资产增值路径 ━━━━━━",
         "",
         progress_text,
         "",
+        f"{trend}",
+        "",
         f"🕒 更新于: {now}",
     ]
 
+    return "\n".join(lines)
+
+def format_summary(accounts):
+    """格式化多账号汇总表"""
+    if len(accounts) <= 1:
+        return ""
+    lines = [
+        "",
+        "━━━━━━ 📋 账号总览 ━━━━━━",
+        "",
+    ]
+    for acc in accounts:
+        icon = "✅" if acc['ok'] else "❌"
+        lines.append(f"{icon} {mask_email(acc['email'])} | 积分:{acc['points']} | 天数:{acc['days']}")
     return "\n".join(lines)
 
 def main():
@@ -350,7 +536,11 @@ def main():
         send_alert("⚠️ GLaDOS 配置异常", "未配置 GLADOS_COOKIE，请检查 GitHub Secrets。")
         sys.exit(1)
 
+    # 加载历史数据
+    data = load_data()
+
     results = []           # 美观纯文本格式（所有渠道统一）
+    accounts = []          # 多账号汇总
     success_cnt = 0
     expired_cookies = []
 
@@ -387,8 +577,31 @@ def main():
 
         if checkin_ok: success_cnt += 1
 
-        # 4. 统一纯文本格式
-        results.append(format_dingtalk_message(g, msg, checkin_ok))
+        # 4. 记录数据（积分趋势 + 连续签到）
+        try:
+            pts = int(g.points)
+        except:
+            pts = 0
+        record_points(data, g.email, pts)
+        streak = update_streak(data, g.email, checkin_ok)
+
+        # 5. 统一纯文本格式
+        results.append(format_dingtalk_message(g, msg, checkin_ok, data, streak))
+
+        # 6. 多账号汇总数据
+        accounts.append({
+            'email': g.email,
+            'points': g.points,
+            'days': g.left_days,
+            'ok': checkin_ok
+        })
+
+    # 保存历史数据
+    save_data(data)
+    log(f"📁 历史数据已保存")
+
+    # 多账号汇总
+    summary = format_summary(accounts)
 
     # Cookie 过期告警
     if expired_cookies:
@@ -417,8 +630,21 @@ def main():
 
     if (tg_token and tg_chat_id) or sc_key or ding_token:
         title = f"GLaDOS签到: 成功{success_cnt}/{len(cookies)}"
-        # 所有渠道统一使用美观的纯文本格式
+
+        # 拼接所有内容
         text_content = "\n\n".join(results)
+        if summary:
+            text_content += summary
+
+        # 天气 + 每日一句（只在所有账号签到成功时显示）
+        footer_parts = []
+        if success_cnt == len(cookies):
+            weather = get_weather()
+            if weather:
+                footer_parts.append(weather)
+            footer_parts.append(get_quote())
+        if footer_parts:
+            text_content += "\n\n━━━━━━ 🌤 生活资讯 ━━━━━━\n\n" + "\n".join(footer_parts)
 
         # Server酱
         if sc_key:
