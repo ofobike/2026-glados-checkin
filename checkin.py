@@ -184,6 +184,29 @@ def serverchan(send_key, title, content):
     except Exception as e:
         log(f"❌ Server酱推送失败: {e}")
 
+def dingtalk(token, title, content):
+    """钉钉机器人推送"""
+    if not token: return
+    try:
+        import re
+        url = f"https://oapi.dingtalk.com/robot/send?access_token={token}"
+        # 清理 HTML 标签，保留纯文本
+        text = content.replace("<br>", "\n")
+        text = re.sub(r"<[^>]+>", "", text)
+        msg = f"{title}\n\n{text}"
+        data = {"msgtype": "text", "text": {"content": msg}}
+        resp = requests.post(url, json=data, timeout=10)
+        if resp.status_code == 200:
+            result = resp.json()
+            if result.get('errcode') == 0:
+                log("✅ 钉钉推送成功")
+            else:
+                log(f"❌ 钉钉推送失败: {result.get('errmsg')}")
+        else:
+            log(f"❌ 钉钉推送失败: {resp.status_code}")
+    except Exception as e:
+        log(f"❌ 钉钉推送失败: {e}")
+
 def telegram_push(token, chat_id, title, content):
     if not token or not chat_id: return
     try:
@@ -281,8 +304,9 @@ def main():
     tg_token = os.environ.get("TELEGRAM_BOT_TOKEN")
     tg_chat_id = os.environ.get("TELEGRAM_CHAT_ID")
     sc_key = os.environ.get("SEND_KEY")
-    
-    if ptoken or (tg_token and tg_chat_id) or sc_key:
+    ding_token = os.environ.get("DINGTALK_TOKEN")
+
+    if ptoken or (tg_token and tg_chat_id) or sc_key or ding_token:
         title = f"GLaDOS签到: 成功{success_cnt}/{len(cookies)}"
         content = "".join(results)
         content += f"<br><small>时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}</small>"
@@ -293,6 +317,8 @@ def main():
             telegram_push(tg_token, tg_chat_id, title, content)
         if sc_key:
             serverchan(sc_key, title, content)
+        if ding_token:
+            dingtalk(ding_token, title, content)
 
 if __name__ == '__main__':
     main()
