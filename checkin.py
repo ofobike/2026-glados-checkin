@@ -128,7 +128,7 @@ def record_points(data, email, points):
     data["points_history"][email] = history[-30:]
 
 def format_trend(data, email):
-    """格式化积分趋势（近7天）"""
+    """格式化积分趋势（近7天 + ASCII 图表）"""
     history = data.get("points_history", {}).get(email, [])
     if len(history) < 2:
         return "📊 趋势: 数据积累中 (至少需要2天数据)"
@@ -144,7 +144,30 @@ def format_trend(data, email):
             changes.append(str(diff))
     total_change = recent[-1]["points"] - recent[0]["points"]
     trend_icon = "📈" if total_change > 0 else "📉" if total_change < 0 else "➡️"
-    return f"{trend_icon} 近{len(recent)}天趋势: {' '.join(changes)} (共{'+' if total_change>=0 else ''}{total_change})"
+
+    # ASCII 趋势图
+    points_list = [r["points"] for r in recent]
+    min_pts = min(points_list)
+    max_pts = max(points_list)
+    chart_height = 3
+    chart_width = len(points_list)
+    if max_pts > min_pts:
+        chart_lines = []
+        for row in range(chart_height, 0, -1):
+            threshold = min_pts + (max_pts - min_pts) * (row - 0.5) / chart_height
+            line = ""
+            for pts in points_list:
+                if pts >= threshold:
+                    line += "█ "
+                else:
+                    line += "  "
+            chart_lines.append(line)
+        dates = [r["date"][5:] for r in recent]  # MM-DD
+        date_line = " ".join(d[:2] for d in dates)
+        chart = "\n".join(chart_lines) + "\n" + date_line
+        return f"{trend_icon} 近{len(recent)}天趋势: {' '.join(changes)} (共{'+' if total_change>=0 else ''}{total_change})\n{chart}"
+    else:
+        return f"{trend_icon} 近{len(recent)}天趋势: {' '.join(changes)} (共{'+' if total_change>=0 else ''}{total_change})"
 
 # ================= 连续签到 =================
 
@@ -188,6 +211,57 @@ def calc_value(points):
         return "💰 价值: 暂无数据"
     days_equivalent = points * 0.2
     return f"💰 积分价值: 约 {days_equivalent:.0f} 天会员"
+
+# ================= 智能推荐 =================
+
+def get_recommendation(data, email, points, plans_list):
+    """根据积分增速推荐最优兑换方案"""
+    history = data.get("points_history", {}).get(email, [])
+    if len(history) < 2 or not plans_list:
+        return None
+
+    # 计算日均积分增速
+    recent = history[-7:]
+    if len(recent) < 2:
+        return None
+    total_change = recent[-1]["points"] - recent[0]["points"]
+    days_span = len(recent) - 1
+    daily_rate = total_change / days_span if days_span > 0 else 0
+
+    if daily_rate <= 0:
+        return "🎯 推荐: 积分增长较慢，建议坚持签到"
+
+    # 找到最优兑换方案（性价比最高）
+    best_plan = None
+    best_ratio = 0
+    for p in plans_list:
+        if p['ready']:
+            continue
+        # 性价比 = 天数 / 所需积分
+        ratio = p['days'] / p['need'] if p['need'] > 0 else 0
+        if ratio > best_ratio:
+            best_ratio = ratio
+            best_plan = p
+
+    if not best_plan:
+        return "🎯 推荐: 所有方案均可兑换！"
+
+    days_needed = best_plan['diff'] / daily_rate
+    target_date = (now_bjt() + timedelta(days=days_needed)).strftime('%Y-%m-%d')
+    return f"🎯 最优方案: {best_plan['need']}分兑换{best_plan['days']}天 (性价比{best_ratio:.2f})\n   预计 {target_date} 达成 (还需{best_plan['diff']}分, 日均+{daily_rate:.0f}分)"
+
+# ================= 下次签到提醒 =================
+
+def get_next_checkin():
+    """获取下次签到时间"""
+    now = now_bjt()
+    hour = now.hour
+    if hour < 9 or (hour == 9 and now.minute < 30):
+        return "⏰ 下次签到: 今天 09:30"
+    elif hour < 21 or (hour == 21 and now.minute < 30):
+        return "⏰ 下次签到: 今天 21:30"
+    else:
+        return "⏰ 下次签到: 明天 09:30"
 
 # ================= 天气 =================
 
@@ -354,26 +428,26 @@ class GLaDOS:
 
 def serverchan(send_key, title, content):
     """Server酱推送（免费推送到微信公众号）"""
-    if not send_key: return
+    if not send_key: return False
     try:
         url = f"https://sctapi.ftqq.com/{send_key}.send"
-        # Server酱用 desp 参数传内容，支持 Markdown
         desp = content.replace("<br>", "\n")
-        desp = re.sub(r"<[^>]+>", "", desp)  # 去除所有 HTML 标签
+        desp = re.sub(r"<[^>]+>", "", desp)
         resp = requests.post(url, data={'title': title, 'desp': desp}, timeout=10)
         if resp.status_code == 200:
             log("✅ Server酱推送成功")
+            return True
         else:
             log(f"❌ Server酱推送失败: {resp.status_code}")
     except Exception as e:
         log(f"❌ Server酱推送失败: {e}")
+    return False
 
 def dingtalk(token, title, content):
     """钉钉机器人推送"""
-    if not token: return
+    if not token: return False
     try:
         url = f"https://oapi.dingtalk.com/robot/send?access_token={token}"
-        # 清理 HTML 标签，保留纯文本
         text = content.replace("<br>", "\n")
         text = re.sub(r"<[^>]+>", "", text)
         msg = f"{title}\n\n{text}"
@@ -383,34 +457,51 @@ def dingtalk(token, title, content):
             result = resp.json()
             if result.get('errcode') == 0:
                 log("✅ 钉钉推送成功")
+                return True
             else:
                 log(f"❌ 钉钉推送失败: {result.get('errmsg')}")
         else:
             log(f"❌ 钉钉推送失败: {resp.status_code}")
     except Exception as e:
         log(f"❌ 钉钉推送失败: {e}")
+    return False
 
 def telegram_push(token, chat_id, title, content):
-    """Telegram 推送（纯文本格式）"""
-    if not token or not chat_id: return
+    """Telegram 推送（支持 HTML 格式）"""
+    if not token or not chat_id: return False
     try:
         url = f"https://api.telegram.org/bot{token}/sendMessage"
-        text = f"{title}\n\n{content}"
+        # 转换为 Telegram HTML 格式
+        text = content
+        # 将分隔线加粗
+        text = re.sub(r'(━━━━━━ .+? ━━━━━━)', r'<b>\1</b>', text)
+        # 将 emoji + 标签行加粗
+        text = re.sub(r'^(👤|💰|⏳|📅|📅|🔥|⭐|💰|📈|📉|➡️|📊|🎯|⏰|🕒)(.+)$', r'<b>\1\2</b>', text, flags=re.MULTILINE)
+        msg = f"<b>{title}</b>\n\n{text}"
         data = {
             "chat_id": chat_id,
-            "text": text
+            "text": msg,
+            "parse_mode": "HTML"
         }
         resp = requests.post(url, json=data, timeout=10)
         if resp.status_code == 200:
             result = resp.json()
             if result.get('ok'):
                 log("✅ Telegram 推送成功")
+                return True
             else:
                 log(f"❌ Telegram 推送失败: {result.get('description')}")
+                # 降级为纯文本重试
+                data2 = {"chat_id": chat_id, "text": f"{title}\n\n{content}"}
+                resp2 = requests.post(url, json=data2, timeout=10)
+                if resp2.status_code == 200 and resp2.json().get('ok'):
+                    log("✅ Telegram 推送成功 (纯文本降级)")
+                    return True
         else:
             log(f"❌ Telegram 推送失败: {resp.status_code}")
     except Exception as e:
         log(f"❌ Telegram 推送失败: {e}")
+    return False
 
 def send_alert(title, content):
     """发送过期/异常告警（仅推送到钉钉和Server酱）"""
@@ -472,6 +563,12 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak):
         pts = 0
     value_text = calc_value(pts)
 
+    # 智能推荐
+    recommendation = get_recommendation(data, g.email, pts, g.plans_list)
+
+    # 下次签到时间
+    next_checkin = get_next_checkin()
+
     # 时间
     now = now_bjt().strftime('%H:%M:%S')
 
@@ -493,11 +590,17 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak):
         "━━━━━━ 🎁 资产增值路径 ━━━━━━",
         "",
         progress_text,
-        "",
-        f"{trend}",
-        "",
-        f"🕒 更新于: {now}",
     ]
+
+    if recommendation:
+        lines.append("")
+        lines.append(recommendation)
+
+    lines.append("")
+    lines.append(f"{trend}")
+    lines.append("")
+    lines.append(f"{next_checkin}")
+    lines.append(f"🕒 更新于: {now}")
 
     return "\n".join(lines)
 
@@ -633,17 +736,22 @@ def main():
         if footer_parts:
             text_content += "\n\n━━━━━━ 🌤 生活资讯 ━━━━━━\n\n" + "\n".join(footer_parts)
 
-        # Server酱
+        # 推送并记录状态
+        push_status = []
         if sc_key:
-            serverchan(sc_key, title, text_content)
-
-        # Telegram
+            ok = serverchan(sc_key, title, text_content)
+            push_status.append(("Server酱", ok))
         if tg_token and tg_chat_id:
-            telegram_push(tg_token, tg_chat_id, title, text_content)
-
-        # 钉钉
+            ok = telegram_push(tg_token, tg_chat_id, title, text_content)
+            push_status.append(("Telegram", ok))
         if ding_token:
-            dingtalk(ding_token, title, text_content)
+            ok = dingtalk(ding_token, title, text_content)
+            push_status.append(("钉钉", ok))
+
+        # 推送状态汇总
+        if push_status:
+            status_parts = [f"{'✅' if ok else '❌'} {name}" for name, ok in push_status]
+            log(f"📱 推送状态: {' | '.join(status_parts)}")
 
 if __name__ == '__main__':
     main()
