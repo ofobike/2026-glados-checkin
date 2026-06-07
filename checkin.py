@@ -925,7 +925,7 @@ def format_checkin_rate_trend(data, email):
 
 # ================= 月度目标 =================
 
-MONTHLY_GOAL = int(os.environ.get("MONTHLY_GOAL", "25"))  # 默认目标：每月签到25天
+MONTHLY_GOAL = int(os.environ.get("MONTHLY_GOAL") or "25")  # 默认目标：每月签到25天
 
 def format_monthly_goal(data, email):
     """月度签到目标进度"""
