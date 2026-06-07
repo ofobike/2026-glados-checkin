@@ -1118,7 +1118,7 @@ ZODIAC_COLORS = ["红色 🔴", "蓝色 🔵", "绿色 🟢", "黄色 🟡", "�
 
 def get_zodiac_horoscope(birthday=None):
     """获取星座运势（通过 ZODIAC_SIGN 环境变量配置星座）"""
-    sign_name = os.environ.get("ZODIAC_SIGN", "")
+    sign_name = os.environ.get("ZODIAC_SIGN", "水瓶座")
     if not sign_name and birthday:
         # 从生日推算星座
         try:
@@ -1298,7 +1298,7 @@ COUNTDOWN_EVENTS = []
 def _load_countdown_events():
     """从环境变量加载倒数日事件，格式: 纪念日:2026-01-01,生日:03-15"""
     global COUNTDOWN_EVENTS
-    raw = os.environ.get("COUNTDOWN_EVENTS", "")
+    raw = os.environ.get("COUNTDOWN_EVENTS", "结婚纪念日:2025-11-18")
     if not raw:
         return
     for item in raw.split(","):
