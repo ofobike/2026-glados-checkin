@@ -468,6 +468,207 @@ def get_daily_fortune():
     rank, msg = FORTUNE_LIST[idx]
     return f"🎰 今日运势: {rank}\n   {msg}"
 
+# ================= 签到等级系统 =================
+
+LEVELS = [
+    (0,    "🌱 青铜", "萌新签到者"),
+    (7,    "🌿 白银", "签到新手"),
+    (30,   "⚔️ 黄金", "签到达人"),
+    (90,   "💎 铂金", "签到精英"),
+    (180,  "👑 钻石", "签到大师"),
+    (365,  "🏆 王者", "签到传说"),
+    (500,  "🌟 超凡", "签到之神"),
+    (1000, "🔮 永恒", "签到不朽"),
+]
+
+def get_level(data, email):
+    """根据累计签到天数获取等级"""
+    total_days = len(data.get("checkin_dates", {}).get(email, []))
+    current_level = LEVELS[0]
+    next_level = None
+    for i, (threshold, name, title) in enumerate(LEVELS):
+        if total_days >= threshold:
+            current_level = (threshold, name, title)
+            if i + 1 < len(LEVELS):
+                next_level = LEVELS[i + 1]
+        else:
+            if next_level is None:
+                next_level = (threshold, name, title)
+            break
+
+    _, name, title = current_level
+    result = f"🎮 等级: {name} · {title} (累计{total_days}天)"
+
+    if next_level:
+        next_threshold, next_name, _ = next_level
+        remaining = next_threshold - total_days
+        progress = total_days - current_level[0]
+        span = next_threshold - current_level[0]
+        bar_width = 8
+        filled = round(progress / span * bar_width) if span > 0 else bar_width
+        bar = "▓" * filled + "░" * (bar_width - filled)
+        result += f"\n   [{bar}] 距{next_name}还需 {remaining} 天"
+
+    return result
+
+# ================= ASCII Art 签到庆祝 =================
+
+def get_ascii_celebration(checkin_ok, earned_points):
+    """签到成功时显示庆祝 ASCII Art"""
+    if not checkin_ok:
+        return ""
+
+    arts = [
+        # 大吉大利
+        "  ╔══════════════════════════╗\n"
+        "  ║   🎉  签 到 成 功  🎉    ║\n"
+        "  ║                          ║\n"
+        "  ║    ★  +1 +1 +1 +1  ★    ║\n"
+        "  ║                          ║\n"
+        "  ╚══════════════════════════╝",
+
+        # 荣耀
+        "  ┏━━━━━━━━━━━━━━━━━━━━━━━━┓\n"
+        "  ┃   🏆  今 日 荣 耀  🏆   ┃\n"
+        "  ┃                          ┃\n"
+        "  ┃   ⚡ 签到成功 ⚡         ┃\n"
+        "  ┃   积分 +1 +1 +1         ┃\n"
+        "  ┗━━━━━━━━━━━━━━━━━━━━━━━━┛",
+
+        # 胜利
+        "  ╭──────────────────────────╮\n"
+        "  │   🌟  V I C T O R Y  🌟  │\n"
+        "  │                          │\n"
+        "  │   ✨ 每日签到完成 ✨      │\n"
+        "  │   坚持就是胜利！         │\n"
+        "  ╰──────────────────────────╯",
+    ]
+
+    # 根据日期选择不同的 Art
+    today = now_bjt().strftime('%Y-%m-%d')
+    seed = int(hashlib.md5(today.encode()).hexdigest()[:8], 16)
+    art = arts[seed % len(arts)]
+
+    if earned_points and earned_points > 0:
+        art += f"\n   💰 本次获得 +{earned_points} 积分！"
+
+    return art
+
+# ================= 农历日期 =================
+
+# 2026-2027 农历数据（压缩格式：月份|日|农历月|农历日|节气）
+# 简化版：只提供节气和重要农历节日
+LUNAR_SOLAR_TERMS_2026 = [
+    ("01-05", "小寒"), ("01-20", "大寒"),
+    ("02-04", "立春"), ("02-18", "雨水"),
+    ("03-05", "惊蛰"), ("03-20", "春分"),
+    ("04-04", "清明"), ("04-20", "谷雨"),
+    ("05-05", "立夏"), ("05-21", "小满"),
+    ("06-05", "芒种"), ("06-21", "夏至"),
+    ("07-07", "小暑"), ("07-22", "大暑"),
+    ("08-07", "立秋"), ("08-23", "处暑"),
+    ("09-07", "白露"), ("09-23", "秋分"),
+    ("10-08", "寒露"), ("10-23", "霜降"),
+    ("11-07", "立冬"), ("11-22", "小雪"),
+    ("12-07", "大雪"), ("12-22", "冬至"),
+]
+
+LUNAR_FESTIVALS = [
+    ("01-01", "元旦"),
+    ("02-17", "除夕"),
+    ("02-18", "春节"),
+    ("03-08", "妇女节"),
+    ("04-05", "清明节"),
+    ("05-01", "劳动节"),
+    ("05-31", "端午节"),
+    ("06-01", "儿童节"),
+    ("08-25", "七夕"),
+    ("09-27", "中秋节"),
+    ("10-01", "国庆节"),
+    ("10-18", "重阳节"),
+    ("12-25", "圣诞节"),
+]
+
+def get_lunar_info():
+    """获取今日农历/节气/节日信息"""
+    today = now_bjt().date()
+    mm_dd = today.strftime('%m-%d')
+
+    parts = []
+
+    # 检查节气
+    for date_str, term in LUNAR_SOLAR_TERMS_2026:
+        if date_str == mm_dd:
+            parts.append(f"🌿 今日节气: {term}")
+
+    # 检查节日
+    for date_str, festival in LUNAR_FESTIVALS:
+        if date_str == mm_dd:
+            parts.append(f"🎊 今日节日: {festival}")
+
+    # 检查临近节气（前后1天）
+    if not parts:
+        for date_str, term in LUNAR_SOLAR_TERMS_2026:
+            term_date = datetime.strptime(f"2026-{date_str}", '%Y-%m-%d').date()
+            diff = (term_date - today).days
+            if diff == 1:
+                parts.append(f"🌿 明日节气: {term}")
+                break
+            elif diff == -1:
+                parts.append(f"🌿 昨日节气: {term}")
+                break
+
+    # 农历日期（简化：使用天干地支纪日）
+    # 用日期偏移计算一个简化的农历日
+    heavenly_stems = ["甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸"]
+    earthly_branches = ["子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥"]
+    animals = ["鼠", "牛", "虎", "兔", "龙", "蛇", "马", "羊", "猴", "鸡", "狗", "猪"]
+
+    # 2026年是丙午年（马年）
+    year_idx = (2026 - 4) % 12  # 以公元4年为甲子年
+    stem = heavenly_stems[(2026 - 4) % 10]
+    branch = earthly_branches[year_idx]
+    animal = animals[year_idx]
+    parts.append(f"🏮 {stem}{branch}年 · {animal}年")
+
+    return "\n".join(parts) if parts else ""
+
+# ================= 每日英语/名言 =================
+
+DAILY_QUOTES = [
+    ("Talk is cheap. Show me the code.", "Linus Torvalds"),
+    ("Any fool can write code that a computer can understand. Good programmers write code that humans can understand.", "Martin Fowler"),
+    ("First, solve the problem. Then, write the code.", "John Johnson"),
+    ("Experience is the name everyone gives to their mistakes.", "Oscar Wilde"),
+    ("In order to be irreplaceable, one must always be different.", "Coco Chanel"),
+    ("Java is to JavaScript what car is to carpet.", "Chris Heilmann"),
+    ("Knowledge is power.", "Francis Bacon"),
+    ("The best error message is the one that never shows up.", "Thomas Fuchs"),
+    ("Code is like humor. When you have to explain it, it's bad.", "Cory House"),
+    ("Simplicity is the soul of efficiency.", "Austin Freeman"),
+    ("Make it work, make it right, make it fast.", "Kent Beck"),
+    ("Programs must be written for people to read, and only incidentally for machines to execute.", "Harold Abelson"),
+    ("The only way to learn a new programming language is by writing programs in it.", "Dennis Ritchie"),
+    ("Perfection is achieved not when there is nothing more to add, but when there is nothing left to take away.", "Antoine de Saint-Exupéry"),
+    ("Before software can be reusable it first has to be usable.", "Ralph Johnson"),
+    ("Optimism is an occupational hazard of programming: feedback is the treatment.", "Kent Beck"),
+    ("The best time to plant a tree was 20 years ago. The second best time is now.", "Chinese Proverb"),
+    ("Stay hungry, stay foolish.", "Steve Jobs"),
+    ("Life is what happens when you're busy making other plans.", "John Lennon"),
+    ("In the middle of difficulty lies opportunity.", "Albert Einstein"),
+    ("The journey of a thousand miles begins with a single step.", "Lao Tzu"),
+    ("Not all those who wander are lost.", "J.R.R. Tolkien"),
+    ("Yesterday is history, tomorrow is a mystery, but today is a gift. That is why it is called the present.", "Master Oogway"),
+]
+
+def get_daily_quote_en():
+    """获取每日英语名言（与中文每日一句互补）"""
+    today = now_bjt().strftime('%Y-%m-%d')
+    seed = int(hashlib.md5(("en" + today).encode()).hexdigest()[:8], 16)
+    idx = seed % len(DAILY_QUOTES)
+    quote, author = DAILY_QUOTES[idx]
+    return f'💬 "{quote}"\n   —— {author}'
+
 # ================= 天气穿衣建议 =================
 
 def get_clothing_advice(weather_text):
@@ -1020,7 +1221,7 @@ def telegram_push(token, chat_id, title, content):
         # 将分隔线加粗
         text = re.sub(r'(━━━━━━ .+? ━━━━━━)', r'<b>\1</b>', text)
         # 将 emoji + 标签行加粗
-        text = re.sub(r'^(👤|💰|⏳|📅|🎁|🏅|🚨|⚠️|💡|🔥|⭐|📈|📉|➡️|📊|🎯|⏰|🕒|🗓|📅|🎰|💵|🔮|🏖|🌅|🎊|✨|🌈|🎂|📋)(.+)$', r'<b>\1\2</b>', text, flags=re.MULTILINE)
+        text = re.sub(r'^(👤|💰|⏳|📅|🎁|🏅|🚨|⚠️|💡|🔥|⭐|📈|📉|➡️|📊|🎯|⏰|🕒|🗓|📅|🎰|💵|🔮|🏖|🌅|🎊|✨|🌈|🎂|📋|🎮|🌿|💬|🌿|🏮)(.+)$', r'<b>\1\2</b>', text, flags=re.MULTILINE)
         msg = f"<b>{title}</b>\n\n{text}"
         data = {
             "chat_id": chat_id,
@@ -1147,6 +1348,18 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak, weather_text=None)
     achievements_text = format_achievements(data, g.email)
     new_achievements_text = format_new_achievements(new_achievements)
 
+    # 签到等级系统
+    level_text = get_level(data, g.email)
+
+    # ASCII Art 庆祝
+    celebration = get_ascii_celebration(checkin_ok, g.earned_points)
+
+    # 农历日期
+    lunar = get_lunar_info()
+
+    # 每日英语名言
+    quote_en = get_daily_quote_en()
+
     # 签到周年纪念
     anniversary = get_anniversary(data, g.email)
 
@@ -1169,8 +1382,15 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak, weather_text=None)
         f"👤 账号: {mask_email(g.email)}",
         "",
         f"{fortune}",
-        "",
-        "━━━━━━ 📊 核心资产报告 ━━━━━━",
+    ]
+
+    # 签到成功庆祝
+    if celebration:
+        lines.append("")
+        lines.append(celebration)
+
+    lines.append("")
+    lines.append("━━━━━━ 📊 核心资产报告 ━━━━━━")
         "",
         f"💰 当前积分: {g.points} ({g.points_change})",
         f"⏳ 可用天数: {days} 天  {day_status}",
@@ -1190,6 +1410,9 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak, weather_text=None)
 
     if max_pts_text:
         lines.append(max_pts_text)
+
+    # 签到等级
+    lines.append(f"{level_text}")
 
     # 成就展示
     if achievements_text:
@@ -1240,6 +1463,8 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak, weather_text=None)
 
     # 生活资讯
     life_parts = []
+    if lunar:
+        life_parts.append(lunar)
     if holiday:
         life_parts.append(holiday)
     if clothing:
@@ -1430,13 +1655,16 @@ def main():
         if summary:
             text_content += summary
 
-        # 生活资讯尾部（天气 + 每日一句 + 日出日落）
+        # 生活资讯尾部（天气 + 每日一句 + 英语名言 + 日出日落）
         footer_parts = []
         if weather_text:
             footer_parts.append(weather_text)
         quote = get_quote()
         if quote:
             footer_parts.append(quote)
+        quote_en = get_daily_quote_en()
+        if quote_en:
+            footer_parts.append(quote_en)
         sun_info = get_sun_info()
         if sun_info:
             footer_parts.append(sun_info)
