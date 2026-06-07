@@ -384,7 +384,7 @@ def format_heatmap(data, email):
             elif d.strftime('%Y-%m-%d') in dates_set:
                 row += "🟢"
             else:
-                row += "⚫"
+                row += "⬜"
             if wd < 6:
                 row += " "
         # 显示该周的月份（如果是该月第一周）
