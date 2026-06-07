@@ -11,6 +11,17 @@
 - ✅ 历史最高积分
 - ✅ 会员续期倒计时预警
 - ✅ 本次签到获得积分
+- ✅ 签到成就系统（13种成就徽章）
+- ✅ 每日签到运势
+- ✅ 积分预测（预计达成日期）
+- ✅ 周报/月报（周日/月末自动推送）
+- ✅ 积分换算人民币
+- ✅ 天气穿衣建议
+- ✅ 假期倒计时
+- ✅ 日出日落时间
+- ✅ 自定义天气城市（WEATHER_CITY 环境变量）
+- ✅ 自定义签到时间（CHECKIN_HOURS 环境变量）
+- ✅ 签到日志导出（CSV）
 
 本文档说明如何安全地同步上游更新，同时保留自定义代码。
 
@@ -187,7 +198,18 @@ git push origin main --force
 | `get_max_points()` 函数 | 历史最高积分 |
 | `format_renewal_alert()` 函数 | 会员续期预警 |
 | `format_points_history_detail()` 函数 | 积分变化明细 |
-| 环境变量读取 | `SEND_KEY`、`DINGTALK_TOKEN` |
+| `get_daily_fortune()` 函数 | 每日签到运势 |
+| `get_clothing_advice()` 函数 | 天气穿衣建议 |
+| `get_holiday_countdown()` 函数 | 假期倒计时 |
+| `get_sun_info()` 函数 | 日出日落时间 |
+| `get_points_prediction()` 函数 | 积分预测 |
+| `check_achievements()` 函数 | 签到成就系统 |
+| `format_weekly_report()` 函数 | 周报生成 |
+| `format_monthly_report()` 函数 | 月报生成 |
+| `calc_rmb_value()` 函数 | 积分换算人民币 |
+| `export_checkin_log()` 函数 | 签到日志导出 |
+| `get_anniversary()` 函数 | 签到周年纪念 |
+| 环境变量读取 | `SEND_KEY`、`DINGTALK_TOKEN`、`WEATHER_CITY`、`CHECKIN_HOURS` |
 | 推送触发逻辑 | `if sc_key:` 和 `if ding_token:` |
 | GLaDOS.checkin() | 本次签到积分解析 |
 

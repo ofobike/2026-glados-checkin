@@ -10,7 +10,9 @@
 - 积分趋势、连续签到、价值估算
 - 签到热力图、本月统计、积分变化明细
 - 会员到期预警、本次签到积分
-- 天气预报、每日一句
+- 签到成就系统、每日签到运势
+- 积分预测、周报/月报
+- 天气穿衣建议、假期倒计时、日出日落
 - Cookie 过期自动告警
 - 智能多域名切换 (优先 glados.cloud)
 """
@@ -22,7 +24,9 @@ import sys
 import time
 import re
 import random
-from datetime import datetime, timedelta
+import hashlib
+import csv
+from datetime import datetime, timedelta, date
 from pathlib import Path
 
 # Fix Windows Unicode Output
@@ -108,10 +112,12 @@ def load_data():
             # 兼容旧数据格式
             if "checkin_dates" not in d:
                 d["checkin_dates"] = {}
+            if "achievements" not in d:
+                d["achievements"] = {}
             return d
         except:
             pass
-    return {"points_history": {}, "checkin_streak": {}, "checkin_dates": {}}
+    return {"points_history": {}, "checkin_streak": {}, "checkin_dates": {}, "achievements": {}}
 
 def save_data(data):
     """保存历史数据"""
@@ -259,15 +265,25 @@ def get_recommendation(data, email, points, plans_list):
 # ================= 下次签到提醒 =================
 
 def get_next_checkin():
-    """获取下次签到时间"""
+    """获取下次签到时间（支持自定义签到时间）"""
+    # 从环境变量读取自定义签到时间，格式 "09:30,21:30"
+    custom = os.environ.get("CHECKIN_HOURS", "09:30,21:30")
+    try:
+        times = []
+        for t in custom.split(","):
+            h, m = t.strip().split(":")
+            times.append((int(h), int(m)))
+        times.sort()
+    except:
+        times = [(9, 30), (21, 30)]
+
     now = now_bjt()
-    hour = now.hour
-    if hour < 9 or (hour == 9 and now.minute < 30):
-        return "⏰ 下次签到: 今天 09:30"
-    elif hour < 21 or (hour == 21 and now.minute < 30):
-        return "⏰ 下次签到: 今天 21:30"
-    else:
-        return "⏰ 下次签到: 明天 09:30"
+    for h, m in times:
+        if now.hour < h or (now.hour == h and now.minute < m):
+            return f"⏰ 下次签到: 今天 {h:02d}:{m:02d}"
+    # 所有时间都过了，显示明天第一个
+    h, m = times[0]
+    return f"⏰ 下次签到: 明天 {h:02d}:{m:02d}"
 
 # ================= 签到热力图 =================
 
@@ -390,7 +406,7 @@ def format_renewal_alert(days):
 
 # ================= 天气 =================
 
-WEATHER_CITY = "杭州"
+WEATHER_CITY = os.environ.get("WEATHER_CITY", "杭州")
 
 def get_weather():
     """获取天气信息"""
@@ -430,6 +446,392 @@ def get_quote():
     except Exception as e:
         log(f"⚠️ 一言 API 请求失败: {e}")
     return None
+
+# ================= 每日签到运势 =================
+
+FORTUNE_LIST = [
+    ("大吉 🎉", "今日签到如有神助，积分翻倍不是梦！"),
+    ("大吉 🌟", "紫气东来，签到顺利，会员指日可待！"),
+    ("中吉 😊", "稳中有进，坚持签到，好事自然来。"),
+    ("中吉 🍀", "运气不错，签到顺畅，今天适合摸鱼。"),
+    ("小吉 🙂", "平淡是真，签到打卡，日积月累见成效。"),
+    ("小吉 ☕", "签到顺利，适合喝杯咖啡犒劳自己。"),
+    ("吉 😌", "签到完成，运势平稳，保持节奏即可。"),
+    ("末吉 😅", "签到虽迟但到，明天记得早点签！"),
+]
+
+def get_daily_fortune():
+    """根据日期生成每日运势（同一天结果相同）"""
+    today = now_bjt().strftime('%Y-%m-%d')
+    seed = int(hashlib.md5(today.encode()).hexdigest()[:8], 16)
+    idx = seed % len(FORTUNE_LIST)
+    rank, msg = FORTUNE_LIST[idx]
+    return f"🎰 今日运势: {rank}\n   {msg}"
+
+# ================= 天气穿衣建议 =================
+
+def get_clothing_advice(weather_text):
+    """根据天气文本提供建议"""
+    if not weather_text:
+        return ""
+    # 提取温度
+    match = re.search(r'([+-]?\d+)\s*°?[CcFf]', weather_text)
+    if not match:
+        return ""
+    temp_str = match.group(1)
+    try:
+        temp = int(temp_str)
+    except:
+        return ""
+
+    # 如果是华氏度，转换为摄氏度（备用逻辑）
+    if '°F' in weather_text or '°f' in weather_text:
+        temp = (temp - 32) * 5 // 9
+
+    if temp >= 35:
+        return "🔥 高温预警！注意防暑降温，多喝水"
+    elif temp >= 28:
+        return "👕 适合穿短袖短裤，注意防晒"
+    elif temp >= 20:
+        return "👔 早晚温差大，建议带件薄外套"
+    elif temp >= 10:
+        return "🧥 天气转凉，记得穿外套"
+    elif temp >= 0:
+        return "🧣 注意保暖，围巾手套安排上"
+    else:
+        return "🧤 严寒天气，羽绒服必备，注意防滑"
+
+# ================= 假期倒计时 =================
+
+# 2026年中国法定节假日（按时间顺序）
+HOLIDAYS_2026 = [
+    ("元旦", date(2026, 1, 1)),
+    ("春节", date(2026, 2, 17)),
+    ("清明", date(2026, 4, 5)),
+    ("劳动节", date(2026, 5, 1)),
+    ("端午", date(2026, 6, 19)),
+    ("中秋", date(2026, 9, 27)),
+    ("国庆", date(2026, 10, 1)),
+    # 2027
+    ("元旦", date(2027, 1, 1)),
+    ("春节", date(2027, 2, 6)),
+]
+
+def get_holiday_countdown():
+    """获取最近的假期倒计时"""
+    today = now_bjt().date()
+    for name, h_date in HOLIDAYS_2026:
+        diff = (h_date - today).days
+        if diff > 0:
+            if diff == 1:
+                return f"🏖 明天就是{name}啦！🎉"
+            elif diff <= 3:
+                return f"🏖 距{name}还有 {diff} 天，马上到了！"
+            elif diff <= 7:
+                return f"🏖 距{name}还有 {diff} 天，倒计时中~"
+            else:
+                return f"🏖 距{name}还有 {diff} 天"
+        elif diff == 0:
+            return f"🏖 今天是{name}！节日快乐！🎉"
+    return ""
+
+# ================= 日出日落 =================
+
+def get_sun_info():
+    """获取日出日落时间（使用免费 API）"""
+    try:
+        resp = requests.get(f"https://api.sunrise-sunset.org/json?formatted=0&date=today", timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            if data.get('status') == 'OK':
+                results = data['results']
+                # 转换为北京时间 (UTC+8)
+                sunrise_utc = datetime.fromisoformat(results['sunrise'].replace('Z', '+00:00'))
+                sunset_utc = datetime.fromisoformat(results['sunset'].replace('Z', '+00:00'))
+                sunrise_bjt = sunrise_utc.astimezone(BJT).strftime('%H:%M')
+                sunset_bjt = sunset_utc.astimezone(BJT).strftime('%H:%M')
+                # 计算日照时长
+                day_length = int(results.get('day_length', 0))
+                hours = day_length // 3600
+                minutes = (day_length % 3600) // 60
+                return f"🌅 日出 {sunrise_bjt} | 🌇 日落 {sunset_bjt} | ☀️ 日照 {hours}h{minutes}m"
+    except Exception as e:
+        log(f"⚠️ 日出日落 API 请求失败: {e}")
+    return ""
+
+# ================= 积分预测 =================
+
+def get_points_prediction(data, email, points, plans_list):
+    """根据积分增速预测达成目标的日期"""
+    history = data.get("points_history", {}).get(email, [])
+    if len(history) < 2 or not plans_list:
+        return None
+
+    recent = history[-7:]
+    if len(recent) < 2:
+        return None
+    total_change = recent[-1]["points"] - recent[0]["points"]
+    days_span = len(recent) - 1
+    daily_rate = total_change / days_span if days_span > 0 else 0
+
+    if daily_rate <= 0:
+        return None
+
+    pts = int(points)
+    predictions = []
+    for p in plans_list:
+        if not p['ready'] and p['diff'] > 0:
+            days_needed = p['diff'] / daily_rate
+            target_date = (now_bjt() + timedelta(days=days_needed)).strftime('%m月%d日')
+            predictions.append(f"  📍 {p['need']}分→{p['days']}天: 预计 {target_date} 达成")
+
+    if not predictions:
+        return None
+    return "🔮 积分预测 (基于日均+" + f"{daily_rate:.0f}分):\n" + "\n".join(predictions)
+
+# ================= 签到成就系统 =================
+
+ACHIEVEMENTS = [
+    ("first_checkin", "🔰 初来乍到", "完成第一次签到"),
+    ("streak_3", "⭐ 三日之约", "连续签到 3 天"),
+    ("streak_7", "🔥 一周不断", "连续签到 7 天"),
+    ("streak_30", "💎 月度达人", "连续签到 30 天"),
+    ("streak_100", "👑 百日王者", "连续签到 100 天"),
+    ("streak_365", "🏆 年度传说", "连续签到 365 天"),
+    ("points_100", "💰 小有积蓄", "积分达到 100"),
+    ("points_500", "💰 积分富翁", "积分达到 500"),
+    ("points_1000", "💰 千分大佬", "积分达到 1000"),
+    ("total_7", "📅 签到新手", "累计签到 7 天"),
+    ("total_30", "📅 签到常客", "累计签到 30 天"),
+    ("total_100", "📅 签到元老", "累计签到 100 天"),
+    ("total_365", "📅 签到传说", "累计签到 365 天"),
+]
+
+def check_achievements(data, email, points, streak_count, checkin_ok):
+    """检查并解锁新成就，返回新解锁的成就列表"""
+    if email not in data.get("achievements", {}):
+        if "achievements" not in data:
+            data["achievements"] = {}
+        data["achievements"][email] = []
+
+    unlocked = set(data["achievements"][email])
+    new_achievements = []
+
+    # 累计签到天数
+    total_days = len(data.get("checkin_dates", {}).get(email, []))
+
+    checks = {
+        "first_checkin": checkin_ok,
+        "streak_3": streak_count >= 3,
+        "streak_7": streak_count >= 7,
+        "streak_30": streak_count >= 30,
+        "streak_100": streak_count >= 100,
+        "streak_365": streak_count >= 365,
+        "points_100": points >= 100,
+        "points_500": points >= 500,
+        "points_1000": points >= 1000,
+        "total_7": total_days >= 7,
+        "total_30": total_days >= 30,
+        "total_100": total_days >= 100,
+        "total_365": total_days >= 365,
+    }
+
+    for ach_id, condition in checks.items():
+        if condition and ach_id not in unlocked:
+            unlocked.add(ach_id)
+            for aid, icon_desc, desc in ACHIEVEMENTS:
+                if aid == ach_id:
+                    new_achievements.append(f"{icon_desc} — {desc}")
+                    break
+
+    data["achievements"][email] = list(unlocked)
+    return new_achievements
+
+def format_achievements(data, email):
+    """格式化已解锁成就"""
+    unlocked = data.get("achievements", {}).get(email, [])
+    if not unlocked:
+        return ""
+    total = len(ACHIEVEMENTS)
+    count = len(unlocked)
+    icons = []
+    for ach_id, icon_desc, desc in ACHIEVEMENTS:
+        if ach_id in unlocked:
+            icons.append(icon_desc.split(" ")[0])  # 只取 emoji
+    progress = round(count / total * 100)
+    return f"🏅 成就: {count}/{total} ({progress}%) {''.join(icons)}"
+
+def format_new_achievements(new_list):
+    """格式化新解锁成就通知"""
+    if not new_list:
+        return ""
+    lines = ["", "🎊 🎊 🎊 新成就解锁！🎊 🎊 🎊"]
+    for ach in new_list:
+        lines.append(f"  ✨ {ach}")
+    return "\n".join(lines)
+
+# ================= 周报/月报 =================
+
+def is_weekly_report_day():
+    """判断今天是否是周报日（周日）"""
+    return now_bjt().weekday() == 6  # 周日
+
+def is_monthly_report_day():
+    """判断今天是否是月报日（月末最后一天）"""
+    today = now_bjt().date()
+    tomorrow = today + timedelta(days=1)
+    return tomorrow.month != today.month
+
+def format_weekly_report(data, email, points):
+    """生成周报"""
+    dates_list = data.get("checkin_dates", {}).get(email, [])
+    today = now_bjt().date()
+    week_start = today - timedelta(days=today.weekday())  # 本周一
+    week_prefix = [str(week_start + timedelta(days=i)) for i in range(7)]
+    week_checked = sum(1 for d in dates_list if d in week_prefix)
+
+    history = data.get("points_history", {}).get(email, [])
+    week_points_change = 0
+    if len(history) >= 2:
+        week_ago = today - timedelta(days=7)
+        pts_before = None
+        pts_now = None
+        for r in history:
+            d = datetime.strptime(r["date"], '%Y-%m-%d').date()
+            if d <= week_ago:
+                pts_before = r["points"]
+            pts_now = r["points"]
+        if pts_before and pts_now:
+            week_points_change = pts_now - pts_before
+
+    lines = [
+        "",
+        "━━━━━━ 📊 本周签到周报 ━━━━━━",
+        "",
+        f"📅 本周签到: {week_checked}/7 天",
+        f"💰 本周积分: {'+' if week_points_change >= 0 else ''}{week_points_change}",
+    ]
+
+    streak = data.get("checkin_streak", {}).get(email, {})
+    if streak.get("count", 0) >= 7:
+        lines.append(f"🔥 连续签到: {streak['count']} 天，保持住！")
+    elif week_checked == 7:
+        lines.append("🌟 本周全勤！完美签到！")
+
+    return "\n".join(lines)
+
+def format_monthly_report(data, email, points):
+    """生成月报"""
+    dates_list = data.get("checkin_dates", {}).get(email, [])
+    today = now_bjt().date()
+    month_start = today.replace(day=1)
+    month_prefix = today.strftime('%Y-%m')
+    month_dates = [d for d in dates_list if d.startswith(month_prefix)]
+    month_days = (today - month_start).days + 1
+    checked = len(month_dates)
+    rate = checked * 100 // month_days if month_days > 0 else 0
+
+    history = data.get("points_history", {}).get(email, [])
+    month_points_change = 0
+    if len(history) >= 2:
+        pts_start = None
+        pts_end = None
+        for r in history:
+            if r["date"].startswith(month_prefix):
+                if pts_start is None:
+                    pts_start = r["points"]
+                pts_end = r["points"]
+        if pts_start and pts_end:
+            month_points_change = pts_end - pts_start
+
+    lines = [
+        "",
+        "━━━━━━ 📊 本月签到月报 ━━━━━━",
+        "",
+        f"📅 本月签到: {checked}/{month_days} 天 ({rate}%)",
+        f"💰 本月积分: {'+' if month_points_change >= 0 else ''}{month_points_change}",
+    ]
+
+    if rate >= 90:
+        lines.append("🌟 本月签到率优秀！继续保持！")
+    elif rate >= 70:
+        lines.append("👍 本月签到率不错，加油！")
+    else:
+        lines.append("💪 本月签到率有待提升，加油！")
+
+    return "\n".join(lines)
+
+# ================= 积分换算人民币 =================
+
+def calc_rmb_value(points):
+    """将积分换算为人民币价值（基于 GLaDOS 定价）"""
+    # GLaDOS 官方定价参考：年费约 $30 USD ≈ 216 RMB
+    # 500分 = 100天 → 约 59 RMB (100天年费比例)
+    # 所以 1分 ≈ 0.118 RMB
+    if not isinstance(points, int) or points <= 0:
+        return ""
+    rmb = points * 0.118
+    return f"💵 折合人民币: 约 ¥{rmb:.1f}"
+
+# ================= 签到日志导出 =================
+
+EXPORT_FILE = Path(__file__).parent / "glados_checkin_log.csv"
+
+def export_checkin_log(data, email):
+    """导出签到日志为 CSV"""
+    dates_list = data.get("checkin_dates", {}).get(email, [])
+    history = data.get("points_history", {}).get(email, [])
+    if not dates_list:
+        return ""
+
+    # 合并数据
+    points_map = {r["date"]: r["points"] for r in history}
+    rows = []
+    for d in sorted(dates_list):
+        rows.append({
+            "日期": d,
+            "签到": "✅",
+            "积分": points_map.get(d, ""),
+        })
+
+    try:
+        with open(EXPORT_FILE, 'w', newline='', encoding='utf-8-sig') as f:
+            writer = csv.DictWriter(f, fieldnames=["日期", "签到", "积分"])
+            writer.writeheader()
+            writer.writerows(rows)
+        return f"📋 日志已导出: {EXPORT_FILE.name} ({len(rows)} 条记录)"
+    except Exception as e:
+        log(f"⚠️ 导出日志失败: {e}")
+        return ""
+
+# ================= 签到周年纪念 =================
+
+def get_anniversary(data, email):
+    """检查签到周年纪念"""
+    dates_list = data.get("checkin_dates", {}).get(email, [])
+    if not dates_list:
+        return ""
+    first_date = min(dates_list)
+    first = datetime.strptime(first_date, '%Y-%m-%d').date()
+    today = now_bjt().date()
+    total_days = (today - first).days
+
+    # 里程碑
+    milestones = [100, 200, 365, 500, 730, 1000]
+    for m in milestones:
+        if total_days == m:
+            if m >= 365:
+                years = m // 365
+                return f"🎂 恭喜！今天是您签到第 {m} 天！已坚持 {years} 年，非凡毅力！"
+            else:
+                return f"🎂 里程碑！今天是您签到第 {m} 天！继续加油！"
+
+    # 周年
+    if today.month == first.month and today.day == first.day and total_days >= 365:
+        years = total_days // 365
+        return f"🎂 签到 {years} 周年纪念日！感谢一路坚持！"
+
+    return ""
 
 def extract_cookie(raw: str):
     """提取 Cookie，支持 Cookie-Editor 冒号格式"""
@@ -618,7 +1020,7 @@ def telegram_push(token, chat_id, title, content):
         # 将分隔线加粗
         text = re.sub(r'(━━━━━━ .+? ━━━━━━)', r'<b>\1</b>', text)
         # 将 emoji + 标签行加粗
-        text = re.sub(r'^(👤|💰|⏳|📅|🎁|🏅|🚨|⚠️|💡|🔥|⭐|📈|📉|➡️|📊|🎯|⏰|🕒|🗓|📅)(.+)$', r'<b>\1\2</b>', text, flags=re.MULTILINE)
+        text = re.sub(r'^(👤|💰|⏳|📅|🎁|🏅|🚨|⚠️|💡|🔥|⭐|📈|📉|➡️|📊|🎯|⏰|🕒|🗓|📅|🎰|💵|🔮|🏖|🌅|🎊|✨|🌈|🎂|📋)(.+)$', r'<b>\1\2</b>', text, flags=re.MULTILINE)
         msg = f"<b>{title}</b>\n\n{text}"
         data = {
             "chat_id": chat_id,
@@ -654,7 +1056,7 @@ def send_alert(title, content):
     if ding_token:
         dingtalk(ding_token, title, content)
 
-def format_dingtalk_message(g, msg, checkin_ok, data, streak):
+def format_dingtalk_message(g, msg, checkin_ok, data, streak, weather_text=None):
     """格式化推送消息（纯文本，美观排版）"""
     # 计算断粮日期
     try:
@@ -703,12 +1105,13 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak):
     # 连续签到
     streak_text = format_streak(streak)
 
-    # 签到价值
+    # 签到价值 + 人民币换算
     try:
         pts = int(g.points)
     except:
         pts = 0
     value_text = calc_value(pts)
+    rmb_text = calc_rmb_value(pts)
 
     # 历史最高积分
     max_pts = get_max_points(data, g.email)
@@ -716,6 +1119,9 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak):
 
     # 智能推荐
     recommendation = get_recommendation(data, g.email, pts, g.plans_list)
+
+    # 积分预测
+    prediction = get_points_prediction(data, g.email, pts, g.plans_list)
 
     # 会员续期预警
     renewal_alert = format_renewal_alert(days) if isinstance(days, int) else ""
@@ -729,6 +1135,27 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak):
     # 积分变化明细
     history_detail = format_points_history_detail(g)
 
+    # 每日签到运势
+    fortune = get_daily_fortune()
+
+    # 成就系统
+    try:
+        streak_count = streak.get("count", 0)
+    except:
+        streak_count = 0
+    new_achievements = check_achievements(data, g.email, pts, streak_count, checkin_ok)
+    achievements_text = format_achievements(data, g.email)
+    new_achievements_text = format_new_achievements(new_achievements)
+
+    # 签到周年纪念
+    anniversary = get_anniversary(data, g.email)
+
+    # 假期倒计时
+    holiday = get_holiday_countdown()
+
+    # 天气穿衣建议
+    clothing = get_clothing_advice(weather_text) if weather_text else ""
+
     # 下次签到时间
     next_checkin = get_next_checkin()
 
@@ -740,6 +1167,8 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak):
         f"{get_greeting()}，这是您的资产简报",
         "",
         f"👤 账号: {mask_email(g.email)}",
+        "",
+        f"{fortune}",
         "",
         "━━━━━━ 📊 核心资产报告 ━━━━━━",
         "",
@@ -756,8 +1185,24 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak):
     lines.append(f"{streak_text}")
     lines.append(f"{value_text}")
 
+    if rmb_text:
+        lines.append(rmb_text)
+
     if max_pts_text:
         lines.append(max_pts_text)
+
+    # 成就展示
+    if achievements_text:
+        lines.append(achievements_text)
+
+    # 新成就解锁通知
+    if new_achievements_text:
+        lines.append(new_achievements_text)
+
+    # 签到周年纪念
+    if anniversary:
+        lines.append("")
+        lines.append(anniversary)
 
     # 续期预警（高优先级，放在核心报告内）
     if renewal_alert:
@@ -772,6 +1217,10 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak):
     if recommendation:
         lines.append("")
         lines.append(recommendation)
+
+    if prediction:
+        lines.append("")
+        lines.append(prediction)
 
     # 本月签到统计
     lines.append("")
@@ -788,9 +1237,30 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak):
 
     lines.append("")
     lines.append(f"{trend}")
+
+    # 生活资讯
+    life_parts = []
+    if holiday:
+        life_parts.append(holiday)
+    if clothing:
+        life_parts.append(clothing)
+    if life_parts:
+        lines.append("")
+        lines.append("━━━━━━ 🌈 生活提醒 ━━━━━━")
+        lines.append("")
+        lines.extend(life_parts)
+
     lines.append("")
     lines.append(f"{next_checkin}")
     lines.append(f"🕒 更新于: {now}")
+
+    # 周报/月报
+    if is_weekly_report_day():
+        lines.append("")
+        lines.append(format_weekly_report(data, g.email, pts))
+    if is_monthly_report_day():
+        lines.append("")
+        lines.append(format_monthly_report(data, g.email, pts))
 
     return "\n".join(lines)
 
@@ -855,6 +1325,9 @@ def main():
     # 加载历史数据
     data = load_data()
 
+    # 预获取天气（所有账号共用）
+    weather_text = get_weather()
+
     results = []           # 美观纯文本格式（所有渠道统一）
     accounts = []          # 多账号汇总
     success_cnt = 0
@@ -903,8 +1376,8 @@ def main():
         record_points(data, g.email, pts)
         streak = update_streak(data, g.email, checkin_ok)
 
-        # 5. 统一纯文本格式
-        results.append(format_dingtalk_message(g, msg, checkin_ok, data, streak))
+        # 5. 统一纯文本格式（传入天气用于穿衣建议）
+        results.append(format_dingtalk_message(g, msg, checkin_ok, data, streak, weather_text))
 
         # 6. 多账号汇总数据
         accounts.append({
@@ -913,6 +1386,9 @@ def main():
             'days': g.left_days,
             'ok': checkin_ok
         })
+
+        # 7. 导出签到日志（CSV）
+        export_checkin_log(data, g.email)
 
     # 保存历史数据
     save_data(data)
@@ -954,14 +1430,16 @@ def main():
         if summary:
             text_content += summary
 
-        # 天气 + 每日一句（始终显示）
+        # 生活资讯尾部（天气 + 每日一句 + 日出日落）
         footer_parts = []
-        weather = get_weather()
-        if weather:
-            footer_parts.append(weather)
+        if weather_text:
+            footer_parts.append(weather_text)
         quote = get_quote()
         if quote:
             footer_parts.append(quote)
+        sun_info = get_sun_info()
+        if sun_info:
+            footer_parts.append(sun_info)
         if footer_parts:
             text_content += "\n\n━━━━━━ 🌤 生活资讯 ━━━━━━\n\n" + "\n".join(footer_parts)
 
