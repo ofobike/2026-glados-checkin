@@ -395,7 +395,7 @@ WEATHER_CITY = "杭州"
 def get_weather():
     """获取天气信息"""
     try:
-        resp = requests.get(f"https://wttr.in/{WEATHER_CITY}?format=%C+%t&lang=zh", timeout=10)
+        resp = requests.get(f"https://wttr.in/{WEATHER_CITY}?format=%C+%t&lang=zh&m", timeout=10)
         if resp.status_code == 200:
             weather = resp.text.strip()
             if weather and '?' not in weather:
