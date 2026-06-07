@@ -110,18 +110,54 @@ def load_data():
         try:
             d = json.loads(DATA_FILE.read_text(encoding='utf-8'))
             # 兼容旧数据格式
-            if "checkin_dates" not in d:
-                d["checkin_dates"] = {}
-            if "achievements" not in d:
-                d["achievements"] = {}
+            for key, default in [
+                ("checkin_dates", {}),
+                ("achievements", {}),
+                ("checkin_times", {}),
+            ]:
+                if key not in d:
+                    d[key] = default
             return d
         except:
             pass
-    return {"points_history": {}, "checkin_streak": {}, "checkin_dates": {}, "achievements": {}}
+    return {"points_history": {}, "checkin_streak": {}, "checkin_dates": {}, "achievements": {}, "checkin_times": {}}
 
 def save_data(data):
     """保存历史数据"""
     DATA_FILE.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding='utf-8')
+
+def cleanup_old_data(data, keep_days=10):
+    """清理超过 N 天的历史数据，防止文件过大"""
+    cutoff = (now_bjt() - timedelta(days=keep_days)).strftime('%Y-%m-%d')
+    cleaned = 0
+
+    # 清理 points_history
+    for email in data.get("points_history", {}):
+        before = len(data["points_history"][email])
+        data["points_history"][email] = [
+            r for r in data["points_history"][email] if r.get("date", "") >= cutoff
+        ]
+        cleaned += before - len(data["points_history"][email])
+
+    # 清理 checkin_dates
+    for email in data.get("checkin_dates", {}):
+        before = len(data["checkin_dates"][email])
+        data["checkin_dates"][email] = [
+            d for d in data["checkin_dates"][email] if d >= cutoff
+        ]
+        cleaned += before - len(data["checkin_dates"][email])
+
+    # 清理 checkin_times
+    for email in data.get("checkin_times", {}):
+        before = len(data["checkin_times"][email])
+        data["checkin_times"][email] = [
+            r for r in data["checkin_times"][email] if r.get("date", "") >= cutoff
+        ]
+        cleaned += before - len(data["checkin_times"][email])
+
+    if cleaned > 0:
+        log(f"🧹 已清理 {cleaned} 条超过 {keep_days} 天的历史数据")
+    return cleaned
 
 # ================= 积分趋势 =================
 
@@ -288,7 +324,7 @@ def get_next_checkin():
 # ================= 签到热力图 =================
 
 def record_checkin_date(data, email):
-    """记录今日签到"""
+    """记录今日签到（日期+时间）"""
     today = now_bjt().strftime('%Y-%m-%d')
     if email not in data["checkin_dates"]:
         data["checkin_dates"][email] = []
@@ -297,6 +333,8 @@ def record_checkin_date(data, email):
         dates.append(today)
     # 只保留最近60天
     data["checkin_dates"][email] = dates[-60:]
+    # 记录签到时间
+    record_checkin_time(data, email)
 
 def format_heatmap(data, email):
     """生成近30天签到热力图（ASCII）"""
@@ -664,6 +702,345 @@ def get_daily_quote_en():
     idx = seed % len(FALLBACK_QUOTES)
     quote, author = FALLBACK_QUOTES[idx]
     return f'💬 "{quote}"\n   —— {author}'
+
+# ================= 今日头条新闻 =================
+
+def get_daily_news():
+    """获取今日热点新闻（调用免费 API）"""
+    apis = [
+        ("https://api.03c3.cn/api/zb", "03c3"),
+        ("https://tenapi.cn/v2/toutiao", "tenapi"),
+    ]
+    for url, name in apis:
+        try:
+            resp = requests.get(url, timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                # 适配不同 API 格式
+                items = data.get("data", data.get("list", []))
+                if isinstance(items, list) and len(items) > 0:
+                    lines = ["📰 今日头条:"]
+                    for item in items[:3]:
+                        title = item.get("title", item.get("name", ""))
+                        if title:
+                            lines.append(f"  • {title[:40]}")
+                    if len(lines) > 1:
+                        return "\n".join(lines)
+        except Exception as e:
+            log(f"⚠️ 新闻 API ({name}) 请求失败: {e}")
+            continue
+    return ""
+
+# ================= 加密货币/汇率 =================
+
+def get_crypto_forex():
+    """获取加密货币价格和美元汇率"""
+    parts = []
+
+    # 加密货币（CoinGecko 免费 API）
+    try:
+        resp = requests.get(
+            "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum&vs_currencies=usd&include_24hr_change=true",
+            timeout=10
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            btc = data.get("bitcoin", {})
+            eth = data.get("ethereum", {})
+            if btc:
+                btc_price = btc.get("usd", 0)
+                btc_change = btc.get("usd_24h_change", 0)
+                btc_icon = "📈" if btc_change >= 0 else "📉"
+                parts.append(f"₿ BTC: ${btc_price:,.0f} {btc_icon}{btc_change:+.1f}%")
+            if eth:
+                eth_price = eth.get("usd", 0)
+                eth_change = eth.get("usd_24h_change", 0)
+                eth_icon = "📈" if eth_change >= 0 else "📉"
+                parts.append(f"Ξ ETH: ${eth_price:,.0f} {eth_icon}{eth_change:+.1f}%")
+    except Exception as e:
+        log(f"⚠️ CoinGecko API 请求失败: {e}")
+
+    # 美元汇率
+    try:
+        resp = requests.get("https://api.exchangerate-api.com/v4/latest/USD", timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            cny = data.get("rates", {}).get("CNY", 0)
+            if cny:
+                parts.append(f"💵 USD/CNY: {cny:.2f}")
+    except Exception as e:
+        log(f"⚠️ 汇率 API 请求失败: {e}")
+
+    if parts:
+        return "💰 行情速报:\n  " + "\n  ".join(parts)
+    return ""
+
+# ================= 每日健康提示 =================
+
+HEALTH_TIPS = {
+    "hot": [
+        "🌡️ 高温天气，记得多喝水，避免中暑",
+        "☀️ 紫外线强，出门记得涂防晒霜",
+        "🍉 多吃西瓜、黄瓜等含水量高的水果",
+    ],
+    "warm": [
+        "🌿 天气舒适，适合户外运动",
+        "💧 每天保持 8 杯水的饮水量",
+        "🏃 下午 4-6 点是最佳运动时间",
+    ],
+    "cool": [
+        "🧣 天气转凉，注意保暖防感冒",
+        "🍵 适合喝杯热茶暖暖身子",
+        "😴 早睡早起，保持充足睡眠",
+    ],
+    "cold": [
+        "❄️ 寒冷天气，注意防寒保暖",
+        "🧤 外出记得戴手套围巾",
+        "🍲 多喝热汤，增强免疫力",
+    ],
+}
+
+def get_health_tip(weather_text):
+    """根据天气和季节推送健康提示"""
+    # 根据温度分类
+    category = "warm"
+    if weather_text:
+        match = re.search(r'([+-]?\d+)\s*°?[CcFf]', weather_text)
+        if match:
+            temp = int(match.group(1))
+            if '°F' in weather_text or '°f' in weather_text:
+                temp = (temp - 32) * 5 // 9
+            if temp >= 30:
+                category = "hot"
+            elif temp >= 20:
+                category = "warm"
+            elif temp >= 10:
+                category = "cool"
+            else:
+                category = "cold"
+
+    # 根据日期选择（同一天结果相同）
+    today = now_bjt().strftime('%Y-%m-%d')
+    seed = int(hashlib.md5(("health" + today).encode()).hexdigest()[:8], 16)
+    tips = HEALTH_TIPS[category]
+    tip = tips[seed % len(tips)]
+    return f"🏋️ 健康提示: {tip}"
+
+# ================= 每日电影推荐 =================
+
+def get_movie_recommendation():
+    """获取每日电影推荐（调用免费 API）"""
+    try:
+        resp = requests.get("https://movie.douban.com/j/search_subjects?type=movie&tag=%E7%83%AD%E9%97%A8&page_limit=20&page_start=0", timeout=10,
+                           headers={"User-Agent": "Mozilla/5.0"})
+        if resp.status_code == 200:
+            data = resp.json()
+            subjects = data.get("subjects", [])
+            if subjects:
+                today = now_bjt().strftime('%Y-%m-%d')
+                seed = int(hashlib.md5(("movie" + today).encode()).hexdigest()[:8], 16)
+                movie = subjects[seed % len(subjects)]
+                title = movie.get("title", "")
+                rate = movie.get("rate", "")
+                return f"🎬 今日推荐: 《{title}》 ⭐{rate}"
+    except Exception as e:
+        log(f"⚠️ 电影 API 请求失败: {e}")
+    return ""
+
+# ================= 签到时间分布 =================
+
+def record_checkin_time(data, email):
+    """记录签到时间（小时）"""
+    hour = now_bjt().hour
+    if email not in data.get("checkin_times", {}):
+        if "checkin_times" not in data:
+            data["checkin_times"] = {}
+        data["checkin_times"][email] = []
+    data["checkin_times"][email].append({
+        "date": now_bjt().strftime('%Y-%m-%d'),
+        "hour": hour
+    })
+
+def format_time_distribution(data, email):
+    """统计签到时间分布"""
+    times = data.get("checkin_times", {}).get(email, [])
+    if len(times) < 3:
+        return ""
+
+    # 统计各时段
+    morning = sum(1 for t in times if 5 <= t["hour"] < 12)
+    afternoon = sum(1 for t in times if 12 <= t["hour"] < 18)
+    evening = sum(1 for t in times if 18 <= t["hour"] < 23)
+    night = sum(1 for t in times if t["hour"] >= 23 or t["hour"] < 5)
+    total = len(times)
+
+    # 找出最常签到的时段
+    periods = [("🌅 早鸟", morning), ("☀️ 午间", afternoon), ("🌆 傍晚", evening), ("🌙 夜猫", night)]
+    best = max(periods, key=lambda x: x[1])
+
+    if best[1] == 0:
+        return ""
+
+    pct = best[1] * 100 // total
+    return f"⏰ 签到习惯: {best[0]}型 ({pct}%在该时段签到)"
+
+# ================= 签到率趋势 =================
+
+def format_checkin_rate_trend(data, email):
+    """近4周签到率趋势"""
+    dates_set = set(data.get("checkin_dates", {}).get(email, []))
+    if not dates_set:
+        return ""
+
+    today = now_bjt().date()
+    weeks = []
+    for w in range(3, -1, -1):
+        week_start = today - timedelta(days=today.weekday() + 7 * w)
+        week_checked = 0
+        for d in range(7):
+            day = week_start + timedelta(days=d)
+            if day > today:
+                break
+            if day.strftime('%Y-%m-%d') in dates_set:
+                week_checked += 1
+            week_days = d + 1
+        if w == 0:
+            rate = week_checked * 100 // week_days if week_days > 0 else 0
+        else:
+            rate = week_checked * 100 // 7
+        weeks.append(rate)
+
+    # ASCII 趋势
+    icons = []
+    for i in range(1, len(weeks)):
+        if weeks[i] > weeks[i-1]:
+            icons.append("📈")
+        elif weeks[i] < weeks[i-1]:
+            icons.append("📉")
+        else:
+            icons.append("➡️")
+
+    trend_str = " ".join(icons) if icons else ""
+    return f"📉 签到率趋势: {' → '.join(f'{r}%' for r in weeks)} {trend_str}"
+
+# ================= 月度目标 =================
+
+MONTHLY_GOAL = int(os.environ.get("MONTHLY_GOAL", "25"))  # 默认目标：每月签到25天
+
+def format_monthly_goal(data, email):
+    """月度签到目标进度"""
+    dates_list = data.get("checkin_dates", {}).get(email, [])
+    today = now_bjt().date()
+    month_prefix = today.strftime('%Y-%m')
+    month_start = today.replace(day=1)
+    month_days = (today - month_start).days + 1
+
+    month_dates = [d for d in dates_list if d.startswith(month_prefix)]
+    checked = len(month_dates)
+
+    # 计算需要在剩余天数内完成
+    remaining_days = 30 - month_days  # 大约剩余天数
+    needed = MONTHLY_GOAL - checked
+    if needed <= 0:
+        bar = "▓" * 10
+        return f"🎯 月度目标: {checked}/{MONTHLY_GOAL} 天 [{bar}] 🎉 已达成！"
+    elif needed > remaining_days and remaining_days > 0:
+        bar_filled = round(checked / MONTHLY_GOAL * 10)
+        bar = "▓" * bar_filled + "░" * (10 - bar_filled)
+        return f"🎯 月度目标: {checked}/{MONTHLY_GOAL} 天 [{bar}] ⚠️ 需每天签到"
+    else:
+        bar_filled = round(checked / MONTHLY_GOAL * 10)
+        bar = "▓" * bar_filled + "░" * (10 - bar_filled)
+        return f"🎯 月度目标: {checked}/{MONTHLY_GOAL} 天 [{bar}] 还需{needed}天"
+
+# ================= 签到小游戏 =================
+
+def get_mini_game():
+    """签到小游戏：猜数字"""
+    today = now_bjt().strftime('%Y-%m-%d')
+    seed = int(hashlib.md5(("game" + today).encode()).hexdigest()[:8], 16)
+    lucky_num = (seed % 10) + 1  # 1-10
+
+    # 根据小时生成"猜测"
+    hour = now_bjt().hour
+    guess = (hour % 10) + 1
+
+    if guess == lucky_num:
+        return f"🎲 签到小游戏: 今日幸运数字 {lucky_num}，你猜的 {guess} 命中了！🎉 大吉大利！"
+    else:
+        diff = abs(guess - lucky_num)
+        if diff <= 2:
+            return f"🎲 签到小游戏: 今日幸运数字 {lucky_num}，你猜的 {guess}，差一点！😅"
+        else:
+            return f"🎲 签到小游戏: 今日幸运数字 {lucky_num}，你猜的 {guess}，明天再试试！"
+
+# ================= 签到日记 =================
+
+MOOD_NOTE = os.environ.get("MOOD_NOTE", "")
+
+def get_mood_note():
+    """获取签到日记（通过环境变量配置）"""
+    if MOOD_NOTE:
+        return f"📝 今日心情: {MOOD_NOTE}"
+    return ""
+
+# ================= 世界问候语 =================
+
+WORLD_GREETINGS = [
+    ("🇯🇵 こんにちは", "日语 - 你好"),
+    ("🇰🇷 안녕하세요", "韩语 - 你好"),
+    ("🇫🇷 Bonjour", "法语 - 你好"),
+    ("🇩🇪 Guten Tag", "德语 - 你好"),
+    ("🇪🇸 ¡Hola!", "西班牙语 - 你好"),
+    ("🇮🇹 Ciao", "意大利语 - 你好"),
+    ("🇷🇺 Привет", "俄语 - 你好"),
+    ("🇧🇷 Olá", "葡萄牙语 - 你好"),
+    ("🇸🇦 مرحبا", "阿拉伯语 - 你好"),
+    ("🇮🇳 नमस्ते", "印地语 - 你好"),
+    ("🇹🇭 สวัสดี", "泰语 - 你好"),
+    ("🇻🇳 Xin chào", "越南语 - 你好"),
+]
+
+def get_world_greeting():
+    """每日世界问候语"""
+    today = now_bjt().strftime('%Y-%m-%d')
+    seed = int(hashlib.md5(("greet" + today).encode()).hexdigest()[:8], 16)
+    idx = seed % len(WORLD_GREETINGS)
+    greeting, lang = WORLD_GREETINGS[idx]
+    return f"🌍 今日问候: {greeting} ({lang})"
+
+# ================= 服务器状态 =================
+
+def get_server_status():
+    """获取运行环境信息"""
+    import platform
+    parts = [
+        f"🐍 Python {platform.python_version()}",
+        f"💻 {platform.system()} {platform.machine()}",
+    ]
+    return "🔋 运行环境: " + " | ".join(parts)
+
+# ================= 历史上的今天 =================
+
+def get_today_in_history():
+    """获取历史上的今天（调用免费 API）"""
+    try:
+        resp = requests.get("https://api.oick.cn/lishi/api.php", timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            items = data.get("data", data.get("result", []))
+            if isinstance(items, list) and len(items) > 0:
+                today = now_bjt().strftime('%m月%d日')
+                lines = [f"📅 历史上的今天 ({today}):"]
+                for item in items[:3]:
+                    title = item.get("title", item.get("event", ""))
+                    if title:
+                        lines.append(f"  • {title[:50]}")
+                if len(lines) > 1:
+                    return "\n".join(lines)
+    except Exception as e:
+        log(f"⚠️ 历史上的今天 API 请求失败: {e}")
+    return ""
 
 # ================= 天气穿衣建议 =================
 
@@ -1217,7 +1594,7 @@ def telegram_push(token, chat_id, title, content):
         # 将分隔线加粗
         text = re.sub(r'(━━━━━━ .+? ━━━━━━)', r'<b>\1</b>', text)
         # 将 emoji + 标签行加粗
-        text = re.sub(r'^(👤|💰|⏳|📅|🎁|🏅|🚨|⚠️|💡|🔥|⭐|📈|📉|➡️|📊|🎯|⏰|🕒|🗓|📅|🎰|💵|🔮|🏖|🌅|🎊|✨|🌈|🎂|📋|🎮|🌿|💬|🌿|🏮)(.+)$', r'<b>\1\2</b>', text, flags=re.MULTILINE)
+        text = re.sub(r'^(👤|💰|⏳|📅|🎁|🏅|🚨|⚠️|💡|🔥|⭐|📈|📉|➡️|📊|🎯|⏰|🕒|🗓|📅|🎰|💵|🔮|🏖|🌅|🎊|✨|🌈|🎂|📋|🎮|🌿|💬|🌿|🏮|📰|🎬|🏋️|🎲|📝|🌍|🔋|📉|🎯)(.+)$', r'<b>\1\2</b>', text, flags=re.MULTILINE)
         msg = f"<b>{title}</b>\n\n{text}"
         data = {
             "chat_id": chat_id,
@@ -1365,6 +1742,27 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak, weather_text=None)
     # 天气穿衣建议
     clothing = get_clothing_advice(weather_text) if weather_text else ""
 
+    # 健康提示
+    health_tip = get_health_tip(weather_text)
+
+    # 签到时间分布
+    time_dist = format_time_distribution(data, g.email)
+
+    # 签到率趋势
+    rate_trend = format_checkin_rate_trend(data, g.email)
+
+    # 月度目标
+    monthly_goal = format_monthly_goal(data, g.email)
+
+    # 签到小游戏
+    mini_game = get_mini_game()
+
+    # 签到日记
+    mood_note = get_mood_note()
+
+    # 世界问候语
+    world_greeting = get_world_greeting()
+
     # 下次签到时间
     next_checkin = get_next_checkin()
 
@@ -1377,7 +1775,9 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak, weather_text=None)
         "",
         f"👤 账号: {mask_email(g.email)}",
         "",
+        f"{world_greeting}",
         f"{fortune}",
+        f"{mini_game}",
     ]
 
     # 签到成功庆祝
@@ -1418,6 +1818,10 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak, weather_text=None)
     if new_achievements_text:
         lines.append(new_achievements_text)
 
+    # 签到时间分布
+    if time_dist:
+        lines.append(f"{time_dist}")
+
     # 签到周年纪念
     if anniversary:
         lines.append("")
@@ -1449,6 +1853,15 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak, weather_text=None)
     lines.append("")
     lines.append(heatmap)
 
+    # 签到率趋势
+    if rate_trend:
+        lines.append("")
+        lines.append(rate_trend)
+
+    # 月度目标
+    lines.append("")
+    lines.append(monthly_goal)
+
     # 积分变化明细
     if history_detail:
         lines.append("")
@@ -1465,6 +1878,10 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak, weather_text=None)
         life_parts.append(holiday)
     if clothing:
         life_parts.append(clothing)
+    if health_tip:
+        life_parts.append(health_tip)
+    if mood_note:
+        life_parts.append(mood_note)
     if life_parts:
         lines.append("")
         lines.append("━━━━━━ 🌈 生活提醒 ━━━━━━")
@@ -1611,7 +2028,8 @@ def main():
         # 7. 导出签到日志（CSV）
         export_checkin_log(data, g.email)
 
-    # 保存历史数据
+    # 保存历史数据（先清理再保存）
+    cleanup_old_data(data, keep_days=10)
     save_data(data)
     log(f"📁 历史数据已保存")
 
@@ -1651,7 +2069,7 @@ def main():
         if summary:
             text_content += summary
 
-        # 生活资讯尾部（天气 + 每日一句 + 英语名言 + 日出日落）
+        # 生活资讯尾部
         footer_parts = []
         if weather_text:
             footer_parts.append(weather_text)
@@ -1664,6 +2082,21 @@ def main():
         sun_info = get_sun_info()
         if sun_info:
             footer_parts.append(sun_info)
+        news = get_daily_news()
+        if news:
+            footer_parts.append(news)
+        crypto = get_crypto_forex()
+        if crypto:
+            footer_parts.append(crypto)
+        movie = get_movie_recommendation()
+        if movie:
+            footer_parts.append(movie)
+        history_today = get_today_in_history()
+        if history_today:
+            footer_parts.append(history_today)
+        server_info = get_server_status()
+        if server_info:
+            footer_parts.append(server_info)
         if footer_parts:
             text_content += "\n\n━━━━━━ 🌤 生活资讯 ━━━━━━\n\n" + "\n".join(footer_parts)
 
