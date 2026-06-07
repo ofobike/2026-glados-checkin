@@ -427,16 +427,39 @@ else:
 
 添加以下 Secret（至少配置 `GLADOS_COOKIE`，其余为可选推送渠道）：
 
-| Name                 | Value                    | 必需  | 说明                   |
-| -------------------- | ------------------------ | ----- | ---------------------- |
-| `GLADOS_COOKIE`      | 第二步组合的 Cookie      | ✅ 是 | 签到凭证               |
-| `PUSHPLUS_TOKEN`     | 微信推送 Token           | ❌ 否 | PushPlus 微信推送      |
-| `SEND_KEY`           | Server酱 SendKey         | ❌ 否 | Server酱 微信公众号推送 |
-| `DINGTALK_TOKEN`     | 钉钉 access_token        | ❌ 否 | 钉钉群机器人推送       |
-| `TELEGRAM_BOT_TOKEN` | Telegram Bot Token       | ❌ 否 | Telegram 推送          |
-| `TELEGRAM_CHAT_ID`   | Telegram Chat ID         | ❌ 否 | Telegram 推送          |
-| `BARK_KEY`           | Bark Key                 | ❌ 否 | Bark iOS 推送          |
-| `PUSH_LEVEL`         | `all` 或 `fail_only`     | ❌ 否 | 推送级别控制           |
+### 必填配置
+
+| Name            | Value               | 说明     |
+| --------------- | ------------------- | -------- |
+| `GLADOS_COOKIE` | 第二步组合的 Cookie | 签到凭证 |
+
+### 推送渠道配置（按需选择一个或多个）
+
+| Name                 | Value                | 说明                           |
+| -------------------- | -------------------- | ------------------------------ |
+| `PUSHPLUS_TOKEN`     | PushPlus Token       | PushPlus 微信推送（推荐）      |
+| `SEND_KEY`           | Server酱 SendKey     | Server酱 微信公众号推送        |
+| `DINGTALK_TOKEN`     | 钉钉 access_token    | 钉钉群机器人推送               |
+| `TELEGRAM_BOT_TOKEN` | Telegram Bot Token   | Telegram 推送                  |
+| `TELEGRAM_CHAT_ID`   | Telegram Chat ID     | Telegram 推送                  |
+| `BARK_KEY`           | Bark Key             | Bark iOS 推送（iPhone 用户推荐） |
+
+### 可选功能配置
+
+| Name              | Value              | 默认值                | 说明                         |
+| ----------------- | ------------------ | --------------------- | ---------------------------- |
+| `PUSH_LEVEL`      | `all` 或 `fail_only` | `all`               | 推送级别控制                 |
+| `WEATHER_CITY`    | 城市名称           | `杭州`                | 天气城市                     |
+| `CHECKIN_HOURS`   | 时间，逗号分隔     | `09:30,21:30`         | 自定义签到时间               |
+| `MONTHLY_GOAL`    | 天数               | `25`                  | 每月签到目标天数             |
+| `MOOD_NOTE`       | 文本               | 空                    | 签到日记内容                 |
+| `ZODIAC_SIGN`     | 星座名称           | `水瓶座`              | 星座运势                     |
+| `COUNTDOWN_EVENTS` | 事件:日期，逗号分隔 | `结婚纪念日:11-18`   | 自定义倒数日                 |
+
+> 💡 **配置说明**：
+> - **必填配置**：必须配置，否则无法签到
+> - **推送渠道**：至少配置一个，否则签到结果只在 Actions 日志中可见
+> - **可选功能**：不配置则使用默认值，按需自定义
 
 > 💡 至少配置一个推送渠道，否则签到结果只在 Actions 日志中可见。
 

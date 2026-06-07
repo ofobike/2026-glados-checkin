@@ -32,13 +32,23 @@ jobs:
         run: python checkin.py
         timeout-minutes: 5
         env:
+          # 必填
           GLADOS_COOKIE: ${{ secrets.GLADOS_COOKIE }}
+          # 推送渠道（按需配置）
+          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
           SEND_KEY: ${{ secrets.SEND_KEY }}
           DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           BARK_KEY: ${{ secrets.BARK_KEY }}
-          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+          # 可选配置
+          PUSH_LEVEL: ${{ secrets.PUSH_LEVEL }}
+          WEATHER_CITY: ${{ secrets.WEATHER_CITY }}
+          CHECKIN_HOURS: ${{ secrets.CHECKIN_HOURS }}
+          MONTHLY_GOAL: ${{ secrets.MONTHLY_GOAL }}
+          MOOD_NOTE: ${{ secrets.MOOD_NOTE }}
+          ZODIAC_SIGN: ${{ secrets.ZODIAC_SIGN }}
+          COUNTDOWN_EVENTS: ${{ secrets.COUNTDOWN_EVENTS }}
 
       - name: Retry on Failure
         if: failure()
@@ -48,10 +58,20 @@ jobs:
           python checkin.py
         timeout-minutes: 5
         env:
+          # 必填
           GLADOS_COOKIE: ${{ secrets.GLADOS_COOKIE }}
+          # 推送渠道（按需配置）
+          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
           SEND_KEY: ${{ secrets.SEND_KEY }}
           DINGTALK_TOKEN: ${{ secrets.DINGTALK_TOKEN }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           BARK_KEY: ${{ secrets.BARK_KEY }}
-          PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+          # 可选配置
+          PUSH_LEVEL: ${{ secrets.PUSH_LEVEL }}
+          WEATHER_CITY: ${{ secrets.WEATHER_CITY }}
+          CHECKIN_HOURS: ${{ secrets.CHECKIN_HOURS }}
+          MONTHLY_GOAL: ${{ secrets.MONTHLY_GOAL }}
+          MOOD_NOTE: ${{ secrets.MOOD_NOTE }}
+          ZODIAC_SIGN: ${{ secrets.ZODIAC_SIGN }}
+          COUNTDOWN_EVENTS: ${{ secrets.COUNTDOWN_EVENTS }}
