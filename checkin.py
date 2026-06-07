@@ -1042,6 +1042,384 @@ def get_today_in_history():
         log(f"⚠️ 历史上的今天 API 请求失败: {e}")
     return ""
 
+# ================= 土味情话 =================
+
+SWEET_NOTHINGS = [
+    "你知道你和星星的区别吗？星星点亮了黑夜，而你点亮了我的心 ✨",
+    "我这个人没什么出息，就想花你的钱，睡你的床，做你的老婆 💕",
+    "你猜我的心在哪边？左边？不对，在你那边 💗",
+    "我觉得你好像一款游戏——我的世界 🎮",
+    "你知道我最大的缺点是什么吗？是缺点你 💫",
+    "我想在你那里买一块地——你的死心塌地 🏠",
+    "你闻到空气中有什么味道吗？没有？那就是我对你的爱意弥漫在空气中 🌸",
+    "你累不累啊？你都在我心里跑了一天了 🏃",
+    "我怀疑你的本质是一本书，不然为什么让我越看越想睡（想和你一起睡）📖",
+    "你知道你和猴子的区别吗？猴子住在山洞里，而你住在我心里 🐵",
+    "你是哪里人？你是我的心上人 💝",
+    "我有超能力——超级喜欢你 🦸",
+    "你猜我想喝什么？我想呵护你 🥤",
+    "我对你的爱就像拖拉机上山——轰轰烈烈 🚜",
+    "你知道我的缺点是什么吗？缺点你 😘",
+]
+
+def get_sweet_nothing():
+    """获取每日土味情话"""
+    today = now_bjt().strftime('%Y-%m-%d')
+    seed = int(hashlib.md5(("sweet" + today).encode()).hexdigest()[:8], 16)
+    idx = seed % len(SWEET_NOTHINGS)
+    return f"💕 {SWEET_NOTHINGS[idx]}"
+
+# ================= 彩虹屁 =================
+
+RAINBOW_FARTS = [
+    "你今天的气色真好，是不是偷偷变好看了？🌈",
+    "你笑起来的样子，比今天的天气还晴朗 ☀️",
+    "你就是那种让人一看就觉得世界美好的人 🌟",
+    "你今天穿的衣服真好看，是你自己选的吗？太有品味了 👗",
+    "你的存在本身就是一种治愈 🌻",
+    "你认真做事的样子真的好帅/好美 💪",
+    "你就是行走的正能量，走到哪里亮到哪里 ✨",
+    "和你说话心情就会变好，你是不是有什么魔法？🪄",
+    "你的眼光真好，不然怎么会选择关注我呢？😏",
+    "你今天也辛苦了，记得对自己好一点哦 💖",
+    "你的审美真的很在线，每次都很有品位 🎨",
+    "你这么优秀，一定很累吧？今天也要好好休息哦 🌙",
+    "你是我见过的最努力的人，未来一定可期 🚀",
+    "你说话真好听，应该去做播客 🎙️",
+    "你今天的状态看起来很棒，继续保持！💪",
+]
+
+def get_rainbow_fart():
+    """获取每日彩虹屁"""
+    today = now_bjt().strftime('%Y-%m-%d')
+    seed = int(hashlib.md5(("rainbow" + today).encode()).hexdigest()[:8], 16)
+    idx = seed % len(RAINBOW_FARTS)
+    return f"🌈 {RAINBOW_FARTS[idx]}"
+
+# ================= 星座运势 =================
+
+ZODIAC_SIGNS = [
+    ("摩羯座", 1, 19), ("水瓶座", 2, 18), ("双鱼座", 3, 20),
+    ("白羊座", 4, 19), ("金牛座", 5, 20), ("双子座", 6, 21),
+    ("巨蟹座", 7, 22), ("狮子座", 8, 22), ("处女座", 9, 22),
+    ("天秤座", 10, 23), ("天蝎座", 11, 21), ("射手座", 12, 21),
+]
+
+HOROSCOPE_TEXT = {
+    "love": ["桃花运旺盛，单身者有机会遇到心仪对象 💕", "感情平稳，适合与伴侣共度温馨时光", "感情上需要多沟通，避免误会", "魅力四射，异性缘不错哦 💗", "适合表白或制造浪漫惊喜 🌹"],
+    "work": ["工作顺利，有贵人相助 💼", "适合处理重要事务，效率很高", "注意细节，避免粗心大意", "有新的机会出现，要主动把握 🚀", "团队合作顺利，得到同事认可"],
+    "money": ["财运不错，可能有意外收入 💰", "理性消费，避免冲动购物", "适合做理财规划", "偏财运一般，不宜投机", "正财运稳定，收支平衡"],
+    "health": ["身体状态良好，精力充沛 💪", "注意休息，避免熬夜", "适合运动锻炼，增强体质", "注意饮食健康，少吃油腻", "心情舒畅，保持乐观心态 😊"],
+}
+
+ZODIAC_LUCKY = ["大吉 🎉", "中吉 😊", "小吉 🙂", "吉 😌", "末吉 😅"]
+ZODIAC_LUCKY_NUM = list(range(1, 10))
+ZODIAC_COLORS = ["红色 🔴", "蓝色 🔵", "绿色 🟢", "黄色 🟡", "紫色 🟣", "白色 ⚪", "橙色 🟠"]
+
+def get_zodiac_horoscope(birthday=None):
+    """获取星座运势（通过 ZODIAC_SIGN 环境变量配置星座）"""
+    sign_name = os.environ.get("ZODIAC_SIGN", "")
+    if not sign_name and birthday:
+        # 从生日推算星座
+        try:
+            month, day = int(birthday[:2]), int(birthday[2:])
+            for name, m, d in ZODIAC_SIGNS:
+                if (month == m and day <= d) or (month == m - 1 and day > d):
+                    sign_name = name
+                    break
+        except:
+            pass
+    if not sign_name:
+        return ""
+
+    today = now_bjt().strftime('%Y-%m-%d')
+    seed = int(hashlib.md5((sign_name + today).encode()).hexdigest()[:8], 16)
+
+    love = HOROSCOPE_TEXT["love"][seed % len(HOROSCOPE_TEXT["love"])]
+    work = HOROSCOPE_TEXT["work"][(seed + 1) % len(HOROSCOPE_TEXT["work"])]
+    money = HOROSCOPE_TEXT["money"][(seed + 2) % len(HOROSCOPE_TEXT["money"])]
+    health = HOROSCOPE_TEXT["health"][(seed + 3) % len(HOROSCOPE_TEXT["health"])]
+    lucky = ZODIAC_LUCKY[(seed + 4) % len(ZODIAC_LUCKY)]
+    lucky_num = ZODIAC_LUCKY_NUM[(seed + 5) % len(ZODIAC_LUCKY_NUM)]
+    color = ZODIAC_COLORS[(seed + 6) % len(ZODIAC_COLORS)]
+
+    lines = [
+        f"♈ {sign_name} 今日运势 ({lucky})",
+        f"  💕 爱情: {love}",
+        f"  💼 事业: {work}",
+        f"  💰 财运: {money}",
+        f"  💪 健康: {health}",
+        f"  🍀 幸运数字: {lucky_num} | 幸运颜色: {color}",
+    ]
+    return "\n".join(lines)
+
+# ================= 每日段子 =================
+
+DAILY_JOKES = [
+    "为什么程序员总是分不清万圣节和圣诞节？因为 Oct 31 == Dec 25 🎃",
+    "老婆给当程序员的老公打电话：下班顺路买一斤包子，如果看到卖西瓜的，就买一个。晚上老公手捧一个包子进了家门... 🍞",
+    "医生：你的病很严重。病人：我想看看其他医生。医生：你没机会了，其他医生都说你没救了 😂",
+    "问：如何让一只猫喵喵叫？答：在它面前放一个黄瓜 🥒",
+    "面试官：你最大的缺点是什么？我：太诚实了。面试官：我不觉得这是缺点。我：我不在乎你怎么想 😏",
+    "我问风扇我丑吗，它摇了一晚上的头 🌬️",
+    "今天去买菜，老板说一斤10块，我说便宜点，老板说：那就两斤20吧 🥬",
+    "朋友说带我去蹦极，我说我恐高，他说没事，掉下去就不恐了 🪂",
+    "我妈说我不是亲生的，是从垃圾桶捡来的。我说难怪我这么能装 🗑️",
+    "我曾经也有过梦想，只是后来睡着了 💤",
+    "别人都是笑起来很好看，而你是看起来很好笑 😄",
+    "我的钱包就像洋葱，每次打开都让我泪流满面 😭",
+    "减肥就是：今天开始，明天继续，后天再说 🍔",
+    "人生就像愤怒的小鸟，当你失败时，总有几头猪在笑 🐷",
+    "早起的鸟儿有虫吃，早起的虫儿被鸟吃 🐛",
+]
+
+def get_daily_joke():
+    """获取每日段子"""
+    today = now_bjt().strftime('%Y-%m-%d')
+    seed = int(hashlib.md5(("joke" + today).encode()).hexdigest()[:8], 16)
+    idx = seed % len(DAILY_JOKES)
+    return f"😂 {DAILY_JOKES[idx]}"
+
+# ================= 脑筋急转弯 =================
+
+RIDDLES = [
+    {"q": "什么东西越洗越脏？", "a": "水 💧"},
+    {"q": "什么东西有头没有脚？", "a": "砖头 🧱"},
+    {"q": "什么东西有嘴不说话？", "a": "茶壶 🫖"},
+    {"q": "什么房子没人住？", "a": "蜂房 🐝"},
+    {"q": "什么门关不上？", "a": "球门 ⚽"},
+    {"q": "什么书买不到？", "a": "遗书 📜"},
+    {"q": "什么水不能喝？", "a": "薪水 💸"},
+    {"q": "什么桥不能走？", "a": "鼻梁桥 👃"},
+    {"q": "什么蛋不能吃？", "a": "笨蛋 🤪"},
+    {"q": "什么鱼不能吃？", "a": "木鱼 🪵"},
+    {"q": "什么海没有水？", "a": "辞海 📖"},
+    {"q": "什么花不能摸？", "a": "火花 🔥"},
+    {"q": "什么路最窄？", "a": "冤家路窄 🛤️"},
+    {"q": "什么锁没有孔？", "a": "密码锁 🔐"},
+    {"q": "什么帽不能戴？", "a": "螺帽 🔩"},
+]
+
+def get_riddle():
+    """获取每日脑筋急转弯"""
+    today = now_bjt().strftime('%Y-%m-%d')
+    seed = int(hashlib.md5(("riddle" + today).encode()).hexdigest()[:8], 16)
+    idx = seed % len(RIDDLES)
+    r = RIDDLES[idx]
+    return f"🧩 脑筋急转弯: {r['q']}\n   答案: {r['a']}"
+
+# ================= 每日成语 =================
+
+DAILY_IDIOMS = [
+    ("画龙点睛", "比喻写文章或说话时，在关键处加上精辟的话使内容更加生动。"),
+    ("守株待兔", "比喻不主动努力，而存万一的侥幸心理，希望得到意外的收获。"),
+    ("破釜沉舟", "比喻下定决心，不留退路，非达目的决不罢休。"),
+    ("卧薪尝胆", "形容人刻苦自励，发愤图强。"),
+    ("望梅止渴", "比喻用空想或空话来安慰自己。"),
+    ("掩耳盗铃", "比喻自己欺骗自己，明明掩盖不了的事偏要设法掩盖。"),
+    ("刻舟求剑", "比喻不懂事物已发展变化而仍静止地看问题。"),
+    ("叶公好龙", "比喻表面上爱好某事物，实际上并不真正爱好。"),
+    ("亡羊补牢", "比喻出了问题以后想办法补救，防止继续受损失。"),
+    ("对牛弹琴", "比喻对不懂道理的人讲道理，白费口舌。"),
+    ("杯弓蛇影", "比喻因疑神疑鬼而引起恐惧。"),
+    ("塞翁失马", "比喻坏事在一定条件下可以变为好事。"),
+    ("愚公移山", "比喻坚持不懈地改造自然和坚定不移地进行斗争。"),
+    ("纸上谈兵", "比喻空谈理论，不能解决实际问题。"),
+    ("完璧归赵", "比喻把原物完好地归还本人。"),
+]
+
+def get_daily_idiom():
+    """获取每日成语"""
+    today = now_bjt().strftime('%Y-%m-%d')
+    seed = int(hashlib.md5(("idiom" + today).encode()).hexdigest()[:8], 16)
+    idx = seed % len(DAILY_IDIOMS)
+    name, meaning = DAILY_IDIOMS[idx]
+    return f"📖 每日成语: 【{name}】\n   {meaning}"
+
+# ================= 今天吃什么 =================
+
+FOOD_SUGGESTIONS = [
+    ("🍜 麻辣烫", "想吃辣的时候来一碗"),
+    ("🍣 寿司", "清淡健康的选择"),
+    ("🍕 披萨", "偶尔放纵一下"),
+    ("🥗 沙拉", "减肥日的好选择"),
+    ("🍲 火锅", "和朋友聚餐首选"),
+    ("🍛 咖喱饭", "简单又好吃"),
+    ("🥟 饺子", "北方人的最爱"),
+    ("🍝 意面", "换个西式口味"),
+    ("🍱 便当", "自己带饭最健康"),
+    ("🥘 煲仔饭", "冬天暖胃首选"),
+    ("🌮 墨西哥卷饼", "来点异国风味"),
+    ("🍔 汉堡", "快餐解馋"),
+    ("🍜 拉面", "汤鲜味美"),
+    ("🍛 盖浇饭", "经济实惠"),
+    ("🥪 三明治", "快手午餐"),
+]
+
+def get_food_suggestion():
+    """获取今天吃什么推荐"""
+    today = now_bjt().strftime('%Y-%m-%d')
+    seed = int(hashlib.md5(("food" + today).encode()).hexdigest()[:8], 16)
+    idx = seed % len(FOOD_SUGGESTIONS)
+    food, note = FOOD_SUGGESTIONS[idx]
+    return f"🍚 今天吃什么: {food}\n   {note}"
+
+# ================= 早安问候 =================
+
+MORNING_GREETINGS = [
+    "每一个清晨都是一个新的开始，今天也要加油哦 ☀️",
+    "早安！今天的你比昨天更优秀 🌟",
+    "新的一天，新的希望，愿你一切顺利 🌈",
+    "早起的鸟儿有虫吃，今天也要元气满满 🐦",
+    "早安！记得吃早餐，照顾好自己 🥐",
+    "今天也是美好的一天，微笑面对 😊",
+    "早安！你的努力终将不被辜负 💪",
+    "清晨的阳光正好，你也正好 🌅",
+    "新的一天，愿你被世界温柔以待 🌸",
+    "早安！今天要比昨天更快乐 🎉",
+    "起床啦！今天的任务：开心 😄",
+    "早安！生命不息，奋斗不止 🔥",
+    "每一个早晨都是一份礼物，拆开看看 🎁",
+    "早安！愿你眼中有光，心中有爱 ✨",
+    "今天也要做一个温暖的人哦 🌻",
+]
+
+def get_morning_greeting():
+    """获取早安问候"""
+    today = now_bjt().strftime('%Y-%m-%d')
+    seed = int(hashlib.md5(("morning" + today).encode()).hexdigest()[:8], 16)
+    idx = seed % len(MORNING_GREETINGS)
+    return f"🌅 早安: {MORNING_GREETINGS[idx]}"
+
+# ================= 自定义倒数日 =================
+
+COUNTDOWN_EVENTS = []
+
+def _load_countdown_events():
+    """从环境变量加载倒数日事件，格式: 纪念日:2026-01-01,生日:03-15"""
+    global COUNTDOWN_EVENTS
+    raw = os.environ.get("COUNTDOWN_EVENTS", "")
+    if not raw:
+        return
+    for item in raw.split(","):
+        item = item.strip()
+        if ":" in item:
+            name, date_str = item.split(":", 1)
+            name = name.strip()
+            date_str = date_str.strip()
+            try:
+                if len(date_str) == 5:  # MM-DD 格式（每年重复）
+                    month, day = date_str.split("-")
+                    event_date = date(int(now_bjt().year), int(month), int(day))
+                    if event_date < now_bjt().date():
+                        event_date = date(int(now_bjt().year) + 1, int(month), int(day))
+                else:  # YYYY-MM-DD 格式
+                    event_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                COUNTDOWN_EVENTS.append((name, event_date, len(date_str) == 5))
+            except:
+                pass
+
+def get_countdown():
+    """获取自定义倒数日"""
+    if not COUNTDOWN_EVENTS:
+        _load_countdown_events()
+    if not COUNTDOWN_EVENTS:
+        return ""
+
+    today = now_bjt().date()
+    lines = []
+    for name, event_date, yearly in COUNTDOWN_EVENTS:
+        diff = (event_date - today).days
+        if diff == 0:
+            lines.append(f"🎉 今天是【{name}】！")
+        elif diff == 1:
+            lines.append(f"📅 明天就是【{name}】啦！")
+        elif diff > 0:
+            lines.append(f"📅 距【{name}】还有 {diff} 天")
+
+    if lines:
+        return "🗓 倒数日:\n  " + "\n  ".join(lines)
+    return ""
+
+# ================= 生活指数 =================
+
+def get_life_index(weather_text):
+    """根据天气生成生活指数（本地计算）"""
+    if not weather_text:
+        return ""
+
+    match = re.search(r'([+-]?\d+)\s*°?[CcFf]', weather_text)
+    if not match:
+        return ""
+    temp = int(match.group(1))
+    if '°F' in weather_text or '°f' in weather_text:
+        temp = (temp - 32) * 5 // 9
+
+    today = now_bjt().strftime('%Y-%m-%d')
+    seed = int(hashlib.md5(("index" + today).encode()).hexdigest()[:8], 16)
+
+    # 紫外线指数
+    if temp >= 30:
+        uv = "很强 ☀️ 注意防晒"
+    elif temp >= 25:
+        uv = "较强 🌤 涂防晒霜"
+    elif temp >= 20:
+        uv = "中等 ⛅ 适当防护"
+    else:
+        uv = "较弱 ☁️ 无需特别防护"
+
+    # 运动指数
+    if temp >= 35 or temp <= 0:
+        sport = "不宜 🚫 避免户外运动"
+    elif temp >= 28:
+        sport = "较不宜 🌡 选择室内运动"
+    elif temp >= 15:
+        sport = "适宜 ✅ 户外运动好时机"
+    else:
+        sport = "较适宜 🧥 注意保暖"
+
+    # 洗车指数
+    weather_lower = weather_text.lower()
+    if any(k in weather_lower for k in ['rain', '雨', 'snow', '雪', 'shower']):
+        wash = "不宜 🚫 明天再洗"
+    elif any(k in weather_lower for k in ['cloud', '阴', 'overcast']):
+        wash = "较不宜 ☁️ 建议等等"
+    else:
+        wash = "适宜 ✅ 适合洗车"
+
+    # 穿衣指数
+    if temp >= 33:
+        dress = "短袖短裤 👕"
+    elif temp >= 26:
+        dress = "薄衬衫/T恤 👔"
+    elif temp >= 20:
+        dress = "薄外套+T恤 🧥"
+    elif temp >= 15:
+        dress = "外套+长袖 🧥"
+    elif temp >= 10:
+        dress = "厚外套+毛衣 🧣"
+    elif temp >= 0:
+        dress = "棉衣+保暖内衣 🧤"
+    else:
+        dress = "羽绒服+围巾 🧣"
+
+    # 舒适度
+    if 18 <= temp <= 26:
+        comfort = "舒适 😊"
+    elif 10 <= temp <= 32:
+        comfort = "较舒适 🙂"
+    else:
+        comfort = "不舒适 😣"
+
+    lines = [
+        f"☀️ 紫外线: {uv}",
+        f"🏃 运动: {sport}",
+        f"🚗 洗车: {wash}",
+        f"👔 穿衣: {dress}",
+        f"😌 舒适度: {comfort}",
+    ]
+    return "📊 生活指数:\n  " + "\n  ".join(lines)
+
 # ================= 天气穿衣建议 =================
 
 def get_clothing_advice(weather_text):
@@ -2059,6 +2437,18 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak, weather_text=None)
     # 签到日记
     mood_note = get_mood_note()
 
+    # 新增内容
+    sweet_nothing = get_sweet_nothing()
+    rainbow_fart = get_rainbow_fart()
+    horoscope = get_zodiac_horoscope()
+    daily_joke = get_daily_joke()
+    riddle = get_riddle()
+    idiom = get_daily_idiom()
+    food = get_food_suggestion()
+    morning = get_morning_greeting()
+    countdown = get_countdown()
+    life_index = get_life_index(weather_text)
+
     # 世界问候语
     world_greeting = get_world_greeting()
 
@@ -2178,6 +2568,10 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak, weather_text=None)
         life_parts.append(clothing)
     if health_tip:
         life_parts.append(health_tip)
+    if life_index:
+        life_parts.append(life_index)
+    if countdown:
+        life_parts.append(countdown)
     if mood_note:
         life_parts.append(mood_note)
     if life_parts:
@@ -2185,6 +2579,22 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak, weather_text=None)
         lines.append("━━━━━━ 🌈 生活提醒 ━━━━━━")
         lines.append("")
         lines.extend(life_parts)
+
+    # 趣味内容
+    fun_parts = []
+    if horoscope:
+        fun_parts.append(horoscope)
+    fun_parts.append(sweet_nothing)
+    fun_parts.append(rainbow_fart)
+    fun_parts.append(daily_joke)
+    fun_parts.append(riddle)
+    fun_parts.append(idiom)
+    fun_parts.append(food)
+    if fun_parts:
+        lines.append("")
+        lines.append("━━━━━━ 🎭 今日彩蛋 ━━━━━━")
+        lines.append("")
+        lines.extend(fun_parts)
 
     lines.append("")
     lines.append(f"{next_checkin}")
@@ -2370,6 +2780,9 @@ def main():
 
         # 生活资讯尾部
         footer_parts = []
+        morning = get_morning_greeting()
+        if morning:
+            footer_parts.append(morning)
         if weather_text:
             footer_parts.append(weather_text)
         quote = get_quote()
