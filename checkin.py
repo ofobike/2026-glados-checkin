@@ -1298,7 +1298,7 @@ COUNTDOWN_EVENTS = []
 def _load_countdown_events():
     """从环境变量加载倒数日事件，格式: 纪念日:2026-01-01,生日:03-15"""
     global COUNTDOWN_EVENTS
-    raw = os.environ.get("COUNTDOWN_EVENTS", "结婚纪念日:2025-11-18")
+    raw = os.environ.get("COUNTDOWN_EVENTS", "结婚纪念日:11-18")
     if not raw:
         return
     for item in raw.split(","):
@@ -1320,7 +1320,7 @@ def _load_countdown_events():
                 pass
 
 def get_countdown():
-    """获取自定义倒数日"""
+    """获取自定义倒数日（支持每年重复）"""
     if not COUNTDOWN_EVENTS:
         _load_countdown_events()
     if not COUNTDOWN_EVENTS:
@@ -1330,12 +1330,40 @@ def get_countdown():
     lines = []
     for name, event_date, yearly in COUNTDOWN_EVENTS:
         diff = (event_date - today).days
+
+        # 如果是每年重复的事件且已过，计算下一个
+        if yearly and diff < 0:
+            # 计算到下一年的同一天还有多少天
+            next_year = event_date.replace(year=today.year + 1)
+            diff = (next_year - today).days
+
+        # 计算已过天数（用于显示周年）
+        if yearly:
+            original = event_date.replace(year=2025)  # 假设起始年
+            years_passed = today.year - original.year
+            if today.month < original.month or (today.month == original.month and today.day < original.day):
+                years_passed -= 1
+        else:
+            years_passed = 0
+
         if diff == 0:
-            lines.append(f"🎉 今天是【{name}】！")
+            if years_passed > 0:
+                lines.append(f"🎉 今天是【{name}】{years_passed}周年！")
+            else:
+                lines.append(f"🎉 今天是【{name}】！")
         elif diff == 1:
             lines.append(f"📅 明天就是【{name}】啦！")
-        elif diff > 0:
+        elif diff <= 7:
+            lines.append(f"📅 距【{name}】还有 {diff} 天，快到了！")
+        elif diff <= 30:
             lines.append(f"📅 距【{name}】还有 {diff} 天")
+        else:
+            months = diff // 30
+            days = diff % 30
+            if months > 0:
+                lines.append(f"📅 距【{name}】还有 {months}个月{days}天")
+            else:
+                lines.append(f"📅 距【{name}】还有 {diff} 天")
 
     if lines:
         return "🗓 倒数日:\n  " + "\n  ".join(lines)
