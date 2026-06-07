@@ -1544,14 +1544,235 @@ class GLaDOS:
 
 # ================= 主程序 =================
 
+# Apple 风格 HTML 模板（PushPlus 使用）
+APPLE_HTML_TEMPLATE = """<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+*{{margin:0;padding:0;box-sizing:border-box}}
+body{{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',Arial,sans-serif;background:#f5f5f7;padding:16px;color:#1d1d1f;line-height:1.6}}
+.card{{background:#fff;border-radius:16px;padding:20px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}}
+.card-header{{display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #f0f0f0}}
+.card-header .icon{{font-size:20px}}
+.card-header .title{{font-size:15px;font-weight:600;color:#1d1d1f;letter-spacing:-.2px}}
+.card-header .subtitle{{font-size:12px;color:#86868b;margin-top:2px}}
+.row{{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f7}}
+.row:last-child{{border-bottom:none}}
+.row .label{{font-size:14px;color:#86868b}}
+.row .value{{font-size:14px;font-weight:500;color:#1d1d1f;text-align:right}}
+.row .value.green{{color:#34c759}}
+.row .value.red{{color:#ff3b30}}
+.row .value.orange{{color:#ff9500}}
+.row .value.blue{{color:#007aff}}
+.progress-bar{{height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden;margin:4px 0}}
+.progress-fill{{height:100%;border-radius:3px;transition:width .3s}}
+.progress-fill.green{{background:linear-gradient(90deg,#34c759,#30d158)}}
+.progress-fill.blue{{background:linear-gradient(90deg,#007aff,#5ac8fa)}}
+.progress-fill.orange{{background:linear-gradient(90deg,#ff9500,#ffcc00)}}
+.badge{{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:500}}
+.badge.green{{background:#e8f9ee;color:#34c759}}
+.badge.red{{background:#fef0f0;color:#ff3b30}}
+.badge.orange{{background:#fff5e6;color:#ff9500}}
+.badge.blue{{background:#e8f2ff;color:#007aff}}
+.badge.gray{{background:#f5f5f7;color:#86868b}}
+.section-title{{font-size:13px;font-weight:600;color:#86868b;text-transform:uppercase;letter-spacing:.5px;margin:16px 0 8px;padding-left:4px}}
+.text-sm{{font-size:13px;color:#86868b}}
+.text-center{{text-align:center}}
+.mt-8{{margin-top:8px}}
+.mt-12{{margin-top:12px}}
+.mb-8{{margin-bottom:8px}}
+.footer{{text-align:center;padding:12px 0;color:#86868b;font-size:12px}}
+.footer .brand{{font-weight:600;color:#1d1d1f}}
+.divider{{height:1px;background:#f0f0f0;margin:12px 0}}
+.alert{{padding:12px 16px;border-radius:12px;margin:8px 0;font-size:13px}}
+.alert.warning{{background:#fff5e6;color:#c97b00;border:1px solid #ffe0b2}}
+.alert.danger{{background:#fef0f0;color:#d70015;border:1px solid #ffcdd2}}
+.alert.info{{background:#e8f2ff;color:#007aff;border:1px solid #bbdefb}}
+.alert.success{{background:#e8f9ee;color:#248a3d;border:1px solid #c8e6c9}}
+.quote{{border-left:3px solid #007aff;padding:8px 12px;margin:8px 0;background:#f5f5f7;border-radius:0 8px 8px 0;font-size:13px;color:#515154;font-style:italic}}
+.chip{{display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px;margin:2px;background:#f5f5f7;color:#515154}}
+.heatmap{{font-size:14px;line-height:1.8;letter-spacing:2px}}
+.stat-grid{{display:grid;grid-template-columns:1fr 1fr;gap:8px}}
+.stat-item{{text-align:center;padding:12px 8px;background:#f5f5f7;border-radius:12px}}
+.stat-item .num{{font-size:22px;font-weight:700;color:#1d1d1f}}
+.stat-item .desc{{font-size:11px;color:#86868b;margin-top:2px}}
+.achievement{{display:inline-block;margin:2px;padding:4px 8px;background:#fffbe6;border-radius:8px;font-size:12px}}
+</style></head><body>
+{content}
+<div class="footer">
+  <div class="brand">GLaDOS Auto Checkin</div>
+  <div class="text-sm">Powered by GitHub Actions</div>
+</div>
+</body></html>"""
+
+def _text_to_apple_html(content):
+    """将纯文本推送内容转换为 Apple 风格 HTML"""
+    lines = content.split('\n')
+    html_parts = []
+    current_section = None
+    in_progress = False
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        # 分隔线 → section header
+        m = re.match(r'━━━━━━ (.+?) ━━━━━━', line)
+        if m:
+            if current_section:
+                html_parts.append('</div>')
+            section_name = m.group(1).strip()
+            icon = section_name.split(' ')[0] if ' ' in section_name else '📊'
+            title = ' '.join(section_name.split(' ')[1:]) if ' ' in section_name else section_name
+            html_parts.append(f'<div class="card"><div class="card-header"><span class="icon">{icon}</span><div><div class="title">{title}</div></div></div>')
+            current_section = section_name
+            continue
+
+        # 进度条行
+        progress_match = re.match(r'(█+░*\s*\d+%|▓+░*\s*\d*%?)\s*(.*)', line)
+        if progress_match:
+            bar_text = progress_match.group(1)
+            label = progress_match.group(2)
+            pct_match = re.search(r'(\d+)%', bar_text)
+            pct = pct_match.group(1) if pct_match else '50'
+            color = 'green' if int(pct) >= 80 else 'blue' if int(pct) >= 50 else 'orange'
+            html_parts.append(f'<div class="mb-8"><div class="text-sm">{label}</div>')
+            html_parts.append(f'<div class="progress-bar"><div class="progress-fill {color}" style="width:{pct}%"></div></div></div>')
+            continue
+
+        # 键值对行（emoji + label: value）
+        kv_match = re.match(r'^(.{1,2})\s*(.+?):\s*(.+)$', line)
+        if kv_match:
+            icon = kv_match.group(1)
+            label = kv_match.group(2).strip()
+            value = kv_match.group(3).strip()
+
+            # 判断值的颜色
+            value_class = ''
+            if '✅' in value or '可兑换' in value or '储备充足' in value:
+                value_class = 'green'
+            elif '❌' in value or '紧急' in value or '过期' in value:
+                value_class = 'red'
+            elif '⚠️' in value or '即将到期' in value:
+                value_class = 'orange'
+
+            html_parts.append(f'<div class="row"><span class="label">{icon} {label}</span><span class="value {value_class}">{value}</span></div>')
+            continue
+
+        # 纯 emoji 开头的行（成就、等级等）
+        emoji_line = re.match(r'^([\U0001f300-\U0001f9ff☀-⛿✀-➿].+)', line)
+        if emoji_line:
+            text = emoji_line.group(1)
+            # 成就相关
+            if '成就' in text or '等级' in text or '🥇' in text or '🥈' in text or '🥉' in text:
+                html_parts.append(f'<div class="mt-8"><span class="chip">{text}</span></div>')
+            elif '🎊' in text or '✨' in text or '🏆' in text:
+                html_parts.append(f'<div class="alert success">{text}</div>')
+            elif '🚨' in text or '⚠️' in text:
+                html_parts.append(f'<div class="alert danger">{text}</div>')
+            elif '💡' in text or '🏖' in text or '🌅' in text:
+                html_parts.append(f'<div class="alert info">{text}</div>')
+            else:
+                html_parts.append(f'<div class="mt-8">{text}</div>')
+            continue
+
+        # 普通行
+        html_parts.append(f'<div class="mt-8">{line}</div>')
+
+    if current_section:
+        html_parts.append('</div>')
+
+    return '\n'.join(html_parts)
+
+def _text_to_telegram_html(content):
+    """将纯文本转换为 Telegram HTML 格式（Apple 风格）"""
+    lines = content.split('\n')
+    html_parts = []
+
+    for line in lines:
+        line = line.strip()
+        if not line:
+            html_parts.append('')
+            continue
+
+        # 分隔线 → 斜体标题
+        m = re.match(r'━━━━━━ (.+?) ━━━━━━', line)
+        if m:
+            section = m.group(1).strip()
+            html_parts.append(f'\n<b>── {section} ──</b>')
+            continue
+
+        # 进度条 → code 块
+        if re.match(r'[█░▓]+', line):
+            html_parts.append(f'<code>{line}</code>')
+            continue
+
+        # 键值对行 → 加粗标签
+        kv_match = re.match(r'^(.{1,2})\s*(.+?):\s*(.+)$', line)
+        if kv_match:
+            icon = kv_match.group(1)
+            label = kv_match.group(2).strip()
+            value = kv_match.group(3).strip()
+            html_parts.append(f'{icon} <b>{label}:</b> {value}')
+            continue
+
+        # 成就/庆祝行
+        if any(k in line for k in ['🎊', '✨', '🏆', '🎉']):
+            html_parts.append(f'<b>{line}</b>')
+            continue
+
+        # 告警行
+        if any(k in line for k in ['🚨', '⚠️']):
+            html_parts.append(f'<b>❗ {line}</b>')
+            continue
+
+        # 普通行
+        html_parts.append(line)
+
+    return '\n'.join(html_parts)
+
+def pushplus_push(token, title, content):
+    """PushPlus 微信推送（Apple 风格 HTML）"""
+    if not token: return False
+    try:
+        url = "https://www.pushplus.plus/send"
+        # 转换为 Apple 风格 HTML
+        body_html = _text_to_apple_html(content)
+        full_html = APPLE_HTML_TEMPLATE.format(content=body_html)
+        data = {
+            "token": token,
+            "title": title,
+            "content": full_html,
+            "template": "html"
+        }
+        resp = requests.post(url, json=data, timeout=15)
+        if resp.status_code == 200:
+            result = resp.json()
+            if result.get('code') == 200:
+                log("✅ PushPlus 推送成功")
+                return True
+            else:
+                log(f"❌ PushPlus 推送失败: {result.get('msg')}")
+        else:
+            log(f"❌ PushPlus 推送失败: {resp.status_code}")
+    except Exception as e:
+        log(f"❌ PushPlus 推送失败: {e}")
+    return False
+
 def serverchan(send_key, title, content):
-    """Server酱推送（免费推送到微信公众号）"""
+    """Server酱推送（Markdown 格式）"""
     if not send_key: return False
     try:
         url = f"https://sctapi.ftqq.com/{send_key}.send"
-        desp = content.replace("<br>", "\n")
-        desp = re.sub(r"<[^>]+>", "", desp)
-        resp = requests.post(url, data={'title': title, 'desp': desp}, timeout=10)
+        # 转换为 Markdown 格式
+        md = content
+        # 分隔线 → Markdown 粗体
+        md = re.sub(r'━━━━━━ (.+?) ━━━━━━', r'**\1**', md)
+        # 键值对行 → 加粗标签
+        md = re.sub(r'^(.{1,2})\s*(.+?):\s*(.+)$', r'**\1 \2:** \3', md, flags=re.MULTILINE)
+        # 进度条 → 代码块
+        md = re.sub(r'^([█░▓]+.+)$', r'```\n\1\n```', md, flags=re.MULTILINE)
+        resp = requests.post(url, data={'title': title, 'desp': md}, timeout=10)
         if resp.status_code == 200:
             log("✅ Server酱推送成功")
             return True
@@ -1562,14 +1783,17 @@ def serverchan(send_key, title, content):
     return False
 
 def dingtalk(token, title, content):
-    """钉钉机器人推送"""
+    """钉钉机器人推送（Markdown 格式）"""
     if not token: return False
     try:
         url = f"https://oapi.dingtalk.com/robot/send?access_token={token}"
-        text = content.replace("<br>", "\n")
-        text = re.sub(r"<[^>]+>", "", text)
-        msg = f"{title}\n\n{text}"
-        data = {"msgtype": "text", "text": {"content": msg}}
+        # 转换为 Markdown 格式
+        md = content
+        md = re.sub(r'━━━━━━ (.+?) ━━━━━━', r'### \1', md)
+        md = re.sub(r'^(.{1,2})\s*(.+?):\s*(.+)$', r'**\1 \2:** \3', md, flags=re.MULTILINE)
+        md = re.sub(r'^([█░▓]+.+)$', r'```\n\1\n```', md, flags=re.MULTILINE)
+        msg = f"## {title}\n\n{md}"
+        data = {"msgtype": "markdown", "markdown": {"title": title, "text": msg}}
         resp = requests.post(url, json=data, timeout=10)
         if resp.status_code == 200:
             result = resp.json()
@@ -1585,22 +1809,13 @@ def dingtalk(token, title, content):
     return False
 
 def telegram_push(token, chat_id, title, content):
-    """Telegram 推送（支持 HTML 格式）"""
+    """Telegram 推送（Apple 风格 HTML）"""
     if not token or not chat_id: return False
     try:
         url = f"https://api.telegram.org/bot{token}/sendMessage"
-        # 转换为 Telegram HTML 格式
-        text = content
-        # 将分隔线加粗
-        text = re.sub(r'(━━━━━━ .+? ━━━━━━)', r'<b>\1</b>', text)
-        # 将 emoji + 标签行加粗
-        text = re.sub(r'^(👤|💰|⏳|📅|🎁|🏅|🚨|⚠️|💡|🔥|⭐|📈|📉|➡️|📊|🎯|⏰|🕒|🗓|📅|🎰|💵|🔮|🏖|🌅|🎊|✨|🌈|🎂|📋|🎮|🌿|💬|🌿|🏮|📰|🎬|🏋️|🎲|📝|🌍|🔋|📉|🎯)(.+)$', r'<b>\1\2</b>', text, flags=re.MULTILINE)
+        text = _text_to_telegram_html(content)
         msg = f"<b>{title}</b>\n\n{text}"
-        data = {
-            "chat_id": chat_id,
-            "text": msg,
-            "parse_mode": "HTML"
-        }
+        data = {"chat_id": chat_id, "text": msg, "parse_mode": "HTML"}
         resp = requests.post(url, json=data, timeout=10)
         if resp.status_code == 200:
             result = resp.json()
@@ -2059,8 +2274,9 @@ def main():
     tg_chat_id = os.environ.get("TELEGRAM_CHAT_ID")
     sc_key = os.environ.get("SEND_KEY")
     ding_token = os.environ.get("DINGTALK_TOKEN")
+    pp_token = os.environ.get("PUSHPLUS_TOKEN")
 
-    if (tg_token and tg_chat_id) or sc_key or ding_token:
+    if (tg_token and tg_chat_id) or sc_key or ding_token or pp_token:
         title = f"GLaDOS签到: 成功{success_cnt}/{len(cookies)}"
 
         # 拼接所有内容
@@ -2101,6 +2317,9 @@ def main():
 
         # 推送并记录状态
         push_status = []
+        if pp_token:
+            ok = pushplus_push(pp_token, title, text_content)
+            push_status.append(("PushPlus", ok))
         if sc_key:
             ok = serverchan(sc_key, title, text_content)
             push_status.append(("Server酱", ok))
