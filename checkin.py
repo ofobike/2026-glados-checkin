@@ -1787,11 +1787,10 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak, weather_text=None)
 
     lines.append("")
     lines.append("━━━━━━ 📊 核心资产报告 ━━━━━━")
-        "",
-        f"💰 当前积分: {g.points} ({g.points_change})",
-        f"⏳ 可用天数: {days} 天  {day_status}",
-        f"📅 到期日期: {expire_date}",
-    ]
+    lines.append("")
+    lines.append(f"💰 当前积分: {g.points} ({g.points_change})")
+    lines.append(f"⏳ 可用天数: {days} 天  {day_status}")
+    lines.append(f"📅 到期日期: {expire_date}")
 
     # 本次签到积分
     if earned_text:
