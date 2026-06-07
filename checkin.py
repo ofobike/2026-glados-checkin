@@ -1783,15 +1783,18 @@ def serverchan(send_key, title, content):
     return False
 
 def dingtalk(token, title, content):
-    """钉钉机器人推送（Markdown 格式）"""
+    """钉钉机器人推送（简洁 Markdown）"""
     if not token: return False
     try:
         url = f"https://oapi.dingtalk.com/robot/send?access_token={token}"
-        # 转换为 Markdown 格式
+        # 钉钉 Markdown 支持有限，只保留粗体和换行
         md = content
-        md = re.sub(r'━━━━━━ (.+?) ━━━━━━', r'### \1', md)
+        # 分隔线 → 粗体标题
+        md = re.sub(r'━━━━━━ (.+?) ━━━━━━', r'**\1**', md)
+        # 键值对 → 粗体标签
         md = re.sub(r'^(.{1,2})\s*(.+?):\s*(.+)$', r'**\1 \2:** \3', md, flags=re.MULTILINE)
-        md = re.sub(r'^([█░▓]+.+)$', r'```\n\1\n```', md, flags=re.MULTILINE)
+        # 去掉进度条中的特殊字符（钉钉不支持等宽显示）
+        md = re.sub(r'[█░▓]+[^\n]*', lambda m: m.group(0).replace('█', '■').replace('░', '□').replace('▓', '▣'), md)
         msg = f"## {title}\n\n{md}"
         data = {"msgtype": "markdown", "markdown": {"title": title, "text": msg}}
         resp = requests.post(url, json=data, timeout=10)
