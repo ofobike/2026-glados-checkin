@@ -1429,15 +1429,96 @@ def extract_cookie(raw: str):
     # Standard
     return raw
 
+def validate_cookie(raw: str, index: int = 1) -> list:
+    """检测 Cookie 格式是否异常，返回警告列表"""
+    warnings = []
+    if not raw:
+        return [f"账号 {index}: Cookie 为空"]
+
+    raw = raw.strip()
+
+    # 1. 检查是否包含多余换行
+    if '\n' in raw.replace('\\n', ''):
+        warnings.append(f"账号 {index}: Cookie 包含换行符，可能导致解析失败")
+        warnings.append(f"  👉 修复: 删除 Cookie 中的换行，确保是单行文本")
+
+    # 2. 检查首尾引号
+    if (raw.startswith('"') and raw.endswith('"')) or (raw.startswith("'") and raw.endswith("'")):
+        warnings.append(f"账号 {index}: Cookie 首尾有多余引号")
+        warnings.append(f"  👉 修复: 去掉首尾的 \" 或 ' 引号")
+
+    # 3. 检查是否包含必要字段
+    has_sess = 'koa:sess=' in raw or 'koa.sess=' in raw
+    has_sig = 'koa:sess.sig=' in raw
+
+    if not has_sess:
+        # 可能是纯 JWT Token 或其他格式，不算错误
+        if raw.count('.') == 2 and len(raw) > 50:
+            pass  # JWT Token 格式，extract_cookie 会处理
+        elif raw.startswith('{'):
+            pass  # JSON 格式
+        else:
+            warnings.append(f"账号 {index}: 缺少 koa:sess 字段，格式可能不正确")
+            warnings.append(f"  👉 正确格式: koa:sess=长字符串; koa:sess.sig=短字符串")
+
+    # 4. 检查分号和空格
+    if has_sess and ';' in raw:
+        parts = raw.split(';')
+        for part in parts:
+            if part and not part.strip():
+                warnings.append(f"账号 {index}: Cookie 包含空的分段（多余分号）")
+                warnings.append(f"  👉 修复: 删除多余的分号和空格")
+                break
+
+    # 5. 检查是否缺少分号分隔
+    if has_sess and not has_sig and 'koa:sess.sig' not in raw:
+        warnings.append(f"账号 {index}: 缺少 koa:sess.sig 字段")
+        warnings.append(f"  👉 确保同时复制 koa:sess 和 koa:sess.sig 两个 Cookie")
+
+    # 6. 检查长度异常
+    if len(raw) < 20:
+        warnings.append(f"账号 {index}: Cookie 长度过短 ({len(raw)} 字符)，可能不完整")
+    elif len(raw) > 2000:
+        warnings.append(f"账号 {index}: Cookie 长度异常 ({len(raw)} 字符)，可能复制了多余内容")
+
+    # 7. 检查 URL 编码问题
+    if '%3D' in raw or '%3B' in raw:
+        warnings.append(f"账号 {index}: Cookie 包含 URL 编码字符，可能需要解码")
+        warnings.append(f"  👉 修复: 使用 Cookie-Editor 扩展直接复制原始值")
+
+    # 8. 检查空格问题（非分隔符位置的空格）
+    if '  ' in raw:  # 连续空格
+        warnings.append(f"账号 {index}: Cookie 包含连续空格，可能有复制错误")
+
+    return warnings
+
 def get_cookies():
     raw = os.environ.get("GLADOS_COOKIE", "")
     if not raw:
         log("❌ 未配置 GLADOS_COOKIE")
         return []
-    
-    # Split by enter or &
+
+    # 启动时执行 Cookie 格式检测
     sep = '\n' if '\n' in raw else '&'
-    return [extract_cookie(c) for c in raw.split(sep) if c.strip()]
+    parts = [c for c in raw.split(sep) if c.strip()]
+
+    all_warnings = []
+    for i, part in enumerate(parts, 1):
+        warnings = validate_cookie(part, i)
+        all_warnings.extend(warnings)
+
+    if all_warnings:
+        log("🔒 Cookie 格式检测:")
+        for w in all_warnings:
+            log(f"   {w}")
+        # 如果有严重问题（为空、缺字段），发送告警
+        severe = [w for w in all_warnings if '为空' in w or '缺少 koa:sess' in w or '长度过短' in w]
+        if severe:
+            send_alert("🔒 Cookie 格式异常", "\n".join(all_warnings))
+    else:
+        log("🔒 Cookie 格式检测: ✅ 全部正常")
+
+    return [extract_cookie(c) for c in parts]
 
 # ================= 核心逻辑 =================
 
