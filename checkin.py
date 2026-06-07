@@ -633,40 +633,36 @@ def get_lunar_info():
 
     return "\n".join(parts) if parts else ""
 
-# ================= 每日英语/名言 =================
+# ================= 每日英语名言 =================
 
-DAILY_QUOTES = [
+# 备用名言（API 失败时使用）
+FALLBACK_QUOTES = [
     ("Talk is cheap. Show me the code.", "Linus Torvalds"),
-    ("Any fool can write code that a computer can understand. Good programmers write code that humans can understand.", "Martin Fowler"),
     ("First, solve the problem. Then, write the code.", "John Johnson"),
-    ("Experience is the name everyone gives to their mistakes.", "Oscar Wilde"),
-    ("In order to be irreplaceable, one must always be different.", "Coco Chanel"),
-    ("Java is to JavaScript what car is to carpet.", "Chris Heilmann"),
-    ("Knowledge is power.", "Francis Bacon"),
-    ("The best error message is the one that never shows up.", "Thomas Fuchs"),
-    ("Code is like humor. When you have to explain it, it's bad.", "Cory House"),
-    ("Simplicity is the soul of efficiency.", "Austin Freeman"),
-    ("Make it work, make it right, make it fast.", "Kent Beck"),
-    ("Programs must be written for people to read, and only incidentally for machines to execute.", "Harold Abelson"),
-    ("The only way to learn a new programming language is by writing programs in it.", "Dennis Ritchie"),
-    ("Perfection is achieved not when there is nothing more to add, but when there is nothing left to take away.", "Antoine de Saint-Exupéry"),
-    ("Before software can be reusable it first has to be usable.", "Ralph Johnson"),
-    ("Optimism is an occupational hazard of programming: feedback is the treatment.", "Kent Beck"),
-    ("The best time to plant a tree was 20 years ago. The second best time is now.", "Chinese Proverb"),
     ("Stay hungry, stay foolish.", "Steve Jobs"),
-    ("Life is what happens when you're busy making other plans.", "John Lennon"),
-    ("In the middle of difficulty lies opportunity.", "Albert Einstein"),
     ("The journey of a thousand miles begins with a single step.", "Lao Tzu"),
-    ("Not all those who wander are lost.", "J.R.R. Tolkien"),
-    ("Yesterday is history, tomorrow is a mystery, but today is a gift. That is why it is called the present.", "Master Oogway"),
+    ("In the middle of difficulty lies opportunity.", "Albert Einstein"),
 ]
 
 def get_daily_quote_en():
-    """获取每日英语名言（与中文每日一句互补）"""
+    """获取每日英语名言（调用 Quotable 免费 API）"""
+    # 1. 尝试 Quotable API
+    try:
+        resp = requests.get("https://api.quotable.io/random", timeout=10)
+        if resp.status_code == 200:
+            data = resp.json()
+            content = data.get('content', '')
+            author = data.get('author', 'Unknown')
+            if content:
+                return f'💬 "{content}"\n   —— {author}'
+    except Exception as e:
+        log(f"⚠️ Quotable API 请求失败: {e}")
+
+    # 2. 备用：硬编码名言（根据日期选择，同一天结果相同）
     today = now_bjt().strftime('%Y-%m-%d')
     seed = int(hashlib.md5(("en" + today).encode()).hexdigest()[:8], 16)
-    idx = seed % len(DAILY_QUOTES)
-    quote, author = DAILY_QUOTES[idx]
+    idx = seed % len(FALLBACK_QUOTES)
+    quote, author = FALLBACK_QUOTES[idx]
     return f'💬 "{quote}"\n   —— {author}'
 
 # ================= 天气穿衣建议 =================
