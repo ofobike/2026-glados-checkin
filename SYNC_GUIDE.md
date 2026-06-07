@@ -317,3 +317,47 @@ git push origin main --force
 > - 所有自定义函数 → 全部保留
 > - `APPLE_HTML_TEMPLATE` → 全部保留
 > - 环境变量读取 → 全部保留
+
+---
+
+## 📅 同步历史记录
+
+| 日期 | 上游提交 | 变更内容 | 操作 |
+|------|----------|----------|------|
+| 2026-06-07 | `9be83a6` chore: keep repository active [skip ci] | 代码精简，删除自定义功能，无核心逻辑改进 | ❌ 跳过 |
+
+---
+
+## 🎯 同步决策规则
+
+**只在以下情况同步上游更新：**
+
+| 场景 | 是否同步 | 说明 |
+|------|----------|------|
+| `GLaDOS` 类核心方法修改 | ✅ 同步 | `checkin()`、`get_status()`、`get_points()` 有实质改进 |
+| 签到 API 或域名变更 | ✅ 同步 | 上游修复了 API 端点或域名问题 |
+| 请求头/Cookie 处理优化 | ✅ 同步 | 关键逻辑改进 |
+| Bug 修复（影响签到功能） | ✅ 同步 | 修复了签到失败等问题 |
+| 代码清理/重构 | ❌ 跳过 | 无实质改进，可能删除我们的自定义功能 |
+| 文档更新 | ❌ 跳过 | 不影响功能 |
+| 删除功能/精简代码 | ❌ 跳过 | 上游删除的功能我们有更完整版本 |
+| GitHub Actions 配置变更 | ❌ 跳过 | 我们用 cron-job.org，不需要上游的 schedule |
+
+**快速判断方法：**
+```bash
+# 拉取上游
+git fetch upstream
+
+# 查看提交信息
+git log --oneline main..upstream/main
+
+# 如果提交信息包含以下关键词，大概率需要同步：
+# - fix: checkin / API / domain / cookie
+# - feat: new checkin method
+# - refactor: GLaDOS class (如果核心逻辑有改进)
+
+# 如果提交信息包含以下关键词，直接跳过：
+# - chore: cleanup / keep active
+# - docs: update README
+# - style: formatting
+```
