@@ -2404,12 +2404,21 @@ def telegram_push(token, chat_id, title, content):
 
 def bark_push(key, title, content):
     """Bark 推送（iOS 原生推送）"""
-    if not key: return False
+    if not key:
+        log("⚠️ Bark: 未配置 BARK_KEY，跳过推送")
+        return False
+
+    log(f"📱 Bark 推送开始...")
+    log(f"   Key: {key[:6]}...{key[-4:]}" if len(key) > 10 else f"   Key: {key}")
+
+    # Bark API 地址
+    api_host = "https://api.day.app"
+
+    # 截取内容前 100 字符作为 body（Bark 有长度限制）
+    body = content[:100] + "..." if len(content) > 100 else content
+
     try:
-        # 使用 POST 请求，支持更多参数
-        url = f"https://api.day.app/{key}"
-        # 截取内容前 100 字符作为 body（Bark 有长度限制）
-        body = content[:100] + "..." if len(content) > 100 else content
+        url = f"{api_host}/{key}"
         data = {
             "title": title,
             "body": body,
@@ -2417,19 +2426,39 @@ def bark_push(key, title, content):
             "sound": "birdsong",
             "isArchive": 1  # 保存到历史记录
         }
-        resp = requests.post(url, json=data, timeout=10)
+        log(f"   请求地址: {api_host}")
+        log(f"   标题: {title}")
+        log(f"   内容: {body[:50]}...")
+
+        resp = requests.post(url, json=data, timeout=15)
+        log(f"   响应状态: HTTP {resp.status_code}")
+        log(f"   响应内容: {resp.text[:200]}")
+
         if resp.status_code == 200:
             result = resp.json()
             if result.get('code') == 200:
-                log("✅ Bark 推送成功")
+                log("✅ Bark 推送成功!")
                 return True
             else:
                 log(f"❌ Bark 推送失败: {result.get('message', 'Unknown error')}")
+                return False
         else:
             log(f"❌ Bark 推送失败: HTTP {resp.status_code}")
+            return False
+    except requests.exceptions.SSLError as e:
+        log(f"❌ Bark 推送失败: SSL 连接错误 - {e}")
+        log("   提示: 可能是网络环境限制，GitHub Actions 上应该可以正常工作")
+        return False
+    except requests.exceptions.ConnectionError as e:
+        log(f"❌ Bark 推送失败: 连接错误 - {e}")
+        log("   提示: 无法连接到 Bark API 服务器")
+        return False
+    except requests.exceptions.Timeout as e:
+        log(f"❌ Bark 推送失败: 请求超时 - {e}")
+        return False
     except Exception as e:
-        log(f"❌ Bark 推送失败: {e}")
-    return False
+        log(f"❌ Bark 推送失败: {type(e).__name__}: {e}")
+        return False
 
 def send_alert(title, content):
     """发送过期/异常告警（仅推送到钉钉和Server酱）"""
