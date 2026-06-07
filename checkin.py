@@ -2402,6 +2402,50 @@ def telegram_push(token, chat_id, title, content):
         log(f"❌ Telegram 推送失败: {e}")
     return False
 
+def extract_bark_summary(content):
+    """从完整内容中提取 Bark 推送摘要（关键信息）"""
+    lines = content.split('\n')
+    summary_parts = []
+
+    # 提取关键信息
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+
+        # 积分信息
+        if '当前积分' in line or '积分' in line:
+            summary_parts.append(line)
+        # 签到结果
+        elif '签到结果' in line or 'Checkin' in line or 'Repeats' in line:
+            summary_parts.append(line)
+        # 剩余天数
+        elif '剩余天数' in line or '天数' in line:
+            summary_parts.append(line)
+        # 本次获得
+        elif '本次获得' in line:
+            summary_parts.append(line)
+        # 连续签到
+        elif '连续签到' in line:
+            summary_parts.append(line)
+        # 会员到期
+        elif '到期' in line or '续期' in line:
+            summary_parts.append(line)
+        # 签到率
+        elif '签到率' in line or '本月签到' in line:
+            summary_parts.append(line)
+
+    # 如果没有提取到关键信息，返回前 3 行
+    if not summary_parts:
+        summary_parts = [line for line in lines[:3] if line.strip()]
+
+    # 组合摘要，限制在 500 字符以内
+    summary = '\n'.join(summary_parts)
+    if len(summary) > 500:
+        summary = summary[:497] + '...'
+
+    return summary
+
 def bark_push(key, title, content):
     """Bark 推送（iOS 原生推送）"""
     if not key:
@@ -2414,21 +2458,22 @@ def bark_push(key, title, content):
     # Bark API 地址
     api_host = "https://api.day.app"
 
-    # 截取内容前 100 字符作为 body（Bark 有长度限制）
-    body = content[:100] + "..." if len(content) > 100 else content
+    # 提取关键信息用于 Bark 推送（Bark 有长度限制，建议不超过 500 字符）
+    bark_body = extract_bark_summary(content)
 
     try:
         url = f"{api_host}/{key}"
         data = {
             "title": title,
-            "body": body,
+            "body": bark_body,
             "group": "GLaDOS",
             "sound": "birdsong",
-            "isArchive": 1  # 保存到历史记录
+            "isArchive": 1,  # 保存到历史记录
+            "url": "https://glados.cloud"  # 点击跳转到 GLaDOS
         }
         log(f"   请求地址: {api_host}")
         log(f"   标题: {title}")
-        log(f"   内容: {body[:50]}...")
+        log(f"   内容长度: {len(bark_body)} 字符")
 
         resp = requests.post(url, json=data, timeout=15)
         log(f"   响应状态: HTTP {resp.status_code}")
