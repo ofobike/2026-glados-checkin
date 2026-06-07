@@ -15,7 +15,7 @@
 | ✅ **2026年验证可用** | 经过实测，确认在2026年4月20日正常工作               |
 | ✅ **绝对可用**       | 修复了其他脚本失效的问题（token更新为glados.cloud） |
 | ✅ **新手友好**       | 全程图解，不会也能照着做                            |
-| ✅ **多渠道推送**     | 支持微信/Telegram/钉钉/Server酱 四大推送渠道       |
+| ✅ **多渠道推送**     | 支持 Bark/Telegram/微信/钉钉/Server酱 多种推送渠道 |
 | ✅ **作者持续维护**   | 遇到问题提Issue，作者很乐意帮忙                     |
 
 ---
@@ -228,7 +228,7 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 
 | 类别 | 功能 |
 |------|------|
-| **推送渠道** | Server酱、钉钉机器人 |
+| **推送渠道** | PushPlus、Telegram、Server酱、钉钉机器人、Bark 增强推送 |
 | **数据统计** | 签到热力图、本月统计、积分明细、历史最高、续期预警、签到率趋势、时间分布、月度目标 |
 | **生活资讯** | 天气穿衣建议、假期倒计时、日出日落、今日头条、加密货币行情、健康提示、电影推荐、生活指数 |
 | **趣味内容** | 签到运势、土味情话、彩虹屁、星座运势、每日段子、脑筋急转弯、每日成语、今天吃什么、早安问候、世界问候语 |
@@ -251,6 +251,16 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | `SEND_KEY`           | ❌ 否 | Server酱推送 Key（免费推送到微信公众号）                                   |
 | `DINGTALK_TOKEN`     | ❌ 否 | 钉钉机器人 Webhook 的 access_token                                        |
 | `BARK_KEY`           | ❌ 否 | Bark 推送 Key（iOS 推送）                                                  |
+| `BARK_SERVER`        | ❌ 否 | Bark 服务地址，默认 `https://api.day.app`，自建服务可填写自己的地址。       |
+| `BARK_GROUP`         | ❌ 否 | Bark 通知分组，默认 `GLaDOS`。                                             |
+| `BARK_BADGE_MODE`    | ❌ 否 | Bark 角标模式：`days` 显示最少剩余天数，`success` 显示成功数，`fail` 显示失败数，`off` 关闭。 |
+| `BARK_BADGE`         | ❌ 否 | Bark 固定角标数字。配置后优先于 `BARK_BADGE_MODE`。                        |
+| `BARK_ICON`          | ❌ 否 | Bark 通知图标 URL。                                                        |
+| `BARK_IMAGE`         | ❌ 否 | Bark 通知配图 URL。                                                        |
+| `BARK_ACTION`        | ❌ 否 | Bark 点击动作，例如 `none` 可禁用点击跳转。                                |
+| `BARK_CATEGORY`      | ❌ 否 | Bark 自定义通知分类，配合 iOS 通知动作使用。                               |
+| `BARK_LOW_DAYS`      | ❌ 否 | 剩余天数低于该值时升级 Bark 通知级别，默认 `7`。                           |
+| `BARK_CALL_ON_EXPIRE` | ❌ 否 | Cookie 过期时启用 Bark 电话式提醒：`true` / `false`，默认 `false`。         |
 | `PUSH_LEVEL`         | ❌ 否 | 推送级别：`all` (默认，每次均推送) 或 `fail_only` (仅有账号签到失败时推送) |
 | `WEATHER_CITY`       | ❌ 否 | 天气城市，默认 `杭州`。例如 `北京`、`上海`                                |
 | `CHECKIN_HOURS`      | ❌ 否 | 自定义签到时间，默认 `09:30,21:30`。多个时间用逗号分隔                    |
@@ -269,15 +279,15 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 
 | 渠道        | 平台         | 费用 | 获取方式                                                        | 需要的变量            |
 | ----------- | ------------ | ---- | --------------------------------------------------------------- | --------------------- |
-| **PushPlus** | 微信         | 免费 | [pushplus.plus](https://www.pushplus.plus) 微信扫码登录获取 Token | `PUSHPLUS_TOKEN`      |
+| **PushPlus** | 微信         | 以官方当前套餐为准 | [pushplus.plus](https://www.pushplus.plus) 微信扫码登录获取 Token | `PUSHPLUS_TOKEN`      |
 | **Telegram** | Telegram     | 免费 | 通过 @BotFather 创建机器人，获取 Token 和 Chat ID               | `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` |
 | **Server酱** | 微信公众号   | 免费 | [sct.ftqq.com](https://sct.ftqq.com) 注册获取 SendKey           | `SEND_KEY`            |
 | **钉钉**     | 钉钉         | 免费 | 创建钉钉群机器人，获取 Webhook access_token                     | `DINGTALK_TOKEN`      |
 | **Bark**     | iOS          | 免费 | App Store 下载 Bark 应用，复制 Key                              | `BARK_KEY`            |
 
-> 💡 **推荐**：如果你只选一个，推荐 **PushPlus**（配置最简单，Apple 风格卡片 UI）或 **Telegram**（最稳定）。iOS 用户推荐 **Bark**（原生推送，轻量级）。
+> 💡 **推荐**：iPhone 用户优先选 **Bark**（免费、原生通知、支持角标/声音/跳转/复制/分级提醒）；跨平台优先选 **Telegram**。PushPlus 是否适合取决于它当前的套餐和预算。
 >
-> 所有渠道的推送内容一致，PushPlus 和 Telegram 支持 HTML 美化，Server酱和钉钉使用 Markdown 格式，Bark 使用纯文本。
+> 所有渠道的核心内容一致，PushPlus 和 Telegram 支持 HTML 美化，Server酱和钉钉使用 Markdown 格式，Bark 使用短摘要 + 原生通知增强。
 
 ---
 
@@ -455,6 +465,10 @@ else:
 | `MOOD_NOTE`       | 文本               | 空                    | 签到日记内容                 |
 | `ZODIAC_SIGN`     | 星座名称           | `水瓶座`              | 星座运势                     |
 | `COUNTDOWN_EVENTS` | 事件:日期，逗号分隔 | `结婚纪念日:11-18`   | 自定义倒数日                 |
+| `BARK_GROUP`      | 分组名             | `GLaDOS`              | Bark 通知分组                |
+| `BARK_BADGE_MODE` | `days/success/fail/off` | `days`          | Bark App 角标显示内容        |
+| `BARK_LOW_DAYS`   | 天数               | `7`                   | 剩余天数过低时升级提醒       |
+| `BARK_CALL_ON_EXPIRE` | `true/false`  | `false`               | Cookie 过期时电话式提醒      |
 
 > 💡 **配置说明**：
 > - **必填配置**：必须配置，否则无法签到
@@ -526,11 +540,48 @@ else:
 3. 复制这个 Key
 4. 将 Key 添加到 GitHub Secrets，Name 填 `BARK_KEY`
 
+只配置 `BARK_KEY` 就可以使用增强版默认策略：
+
+- 签到成功：安静推送，通知摘要只保留账号、积分、剩余天数等关键信息
+- 签到失败：自动升级为时效性提醒，并点击跳转到 GitHub Actions
+- Cookie 过期：自动升级提醒，并点击跳转到 GLaDOS 签到页
+- App 角标：默认显示所有账号里最少的剩余天数
+- 长按通知：可复制本次签到摘要和完整报告
+
+高级玩法可以继续添加这些 Secret：
+
+| Name | 默认值 | 说明 |
+| ---- | ------ | ---- |
+| `BARK_SERVER` | `https://api.day.app` | Bark 服务地址，自建 Bark Server 时使用 |
+| `BARK_GROUP` | `GLaDOS` | Bark 通知分组 |
+| `BARK_BADGE_MODE` | `days` | 角标模式：`days` / `success` / `fail` / `off` |
+| `BARK_BADGE` | 空 | 固定角标数字，设置后覆盖角标模式 |
+| `BARK_ICON` | 空 | 通知图标 URL |
+| `BARK_IMAGE` | 空 | 通知配图 URL |
+| `BARK_ACTION` | 空 | 点击动作，例如 `none` 可禁用跳转 |
+| `BARK_CATEGORY` | 空 | 自定义通知分类，配合 iOS 通知动作 |
+| `BARK_LOW_DAYS` | `7` | 剩余天数小于等于该值时升级提醒 |
+| `BARK_LEVEL_SUCCESS` | `passive` | 成功签到的通知级别 |
+| `BARK_LEVEL_FAIL` | `timeSensitive` | 签到失败的通知级别 |
+| `BARK_LEVEL_EXPIRED` | `timeSensitive` | Cookie 过期的通知级别 |
+| `BARK_SOUND_SUCCESS` | `birdsong` | 成功签到铃声 |
+| `BARK_SOUND_FAIL` | `alarm` | 失败铃声 |
+| `BARK_SOUND_EXPIRED` | `alarm` | Cookie 过期铃声 |
+| `BARK_URL_SUCCESS` | GLaDOS 签到页 | 成功通知点击跳转地址 |
+| `BARK_URL_FAIL` | 当前仓库 Actions 页 | 失败通知点击跳转地址 |
+| `BARK_URL_EXPIRED` | GLaDOS 签到页 | Cookie 过期通知点击跳转地址 |
+| `BARK_CALL_ON_EXPIRE` | `false` | Cookie 过期时是否启用电话式提醒 |
+| `BARK_CRITICAL_ON_EXPIRE` | `false` | Cookie 过期时是否使用 critical 级别 |
+| `BARK_AUTO_COPY` | `false` | 是否自动复制摘要（受 iOS 限制，通常需要交互） |
+| `BARK_ARCHIVE` | `true` | 是否保存到 Bark 历史记录 |
+| `BARK_TTL` | 空 | 推送保留时间（秒） |
+| `BARK_VOLUME` | 空 | critical 提醒音量，范围 `0`-`10` |
+
 > 💡 **Bark 优势**：
 > - ✅ 完全免费，无任何限制
 > - ✅ iOS 原生推送，及时稳定
 > - ✅ 不耗电，轻量级
-> - ✅ 支持自定义铃声和分组
+> - ✅ 支持自定义铃声、分组、角标、跳转、复制和分级提醒
 >
 > 📱 **下载地址**：[App Store - Bark](https://apps.apple.com/app/bark/id1403753865)
 
@@ -690,6 +741,8 @@ export SEND_KEY="xxx"
 export DINGTALK_TOKEN="xxx"
 export TELEGRAM_BOT_TOKEN="xxx"
 export TELEGRAM_CHAT_ID="yyy"
+export BARK_KEY="zzz"
+export BARK_BADGE_MODE="days"
 
 # 可选：推送级别
 export PUSH_LEVEL="all"  # 或 "fail_only"
@@ -763,7 +816,7 @@ python3 checkin.py
 
 ## 📊 推送效果预览
 
-签到成功后，你会收到类似这样的推送。**PushPlus（微信）** 采用 Apple 风格卡片 UI，**Telegram** 使用 HTML 美化格式。
+签到成功后，你会收到类似这样的推送。**Bark** 会把锁屏通知压缩成短摘要，并按签到结果自动设置提醒级别；**Telegram** 使用 HTML 美化格式；**PushPlus** 仍保留 Apple 风格卡片 UI。
 
 ```text
 🌇 下午好，这是您的资产简报
@@ -888,6 +941,8 @@ python3 checkin.py
 🔋 运行环境: 🐍 Python 3.11 | 💻 Linux x86_64
 ```
 
+> 💡 **Bark 用户**会看到原生 iOS 通知：成功签到默认安静提醒，失败或 Cookie 过期会自动升级提醒，App 角标默认显示最少剩余天数，长按通知可复制摘要。
+>
 > 💡 **PushPlus 用户**会看到 Apple 风格的卡片式 HTML 界面（渐变背景、圆角卡片、进度条动画）。
 >
 > 实际推送内容会根据你的积分、会员状态和历史数据自动调整。签到热力图和积分明细需要积累几天数据后才会显示。
@@ -1092,6 +1147,13 @@ WEATHER_CITY = "你的城市"  # 例如 "北京"、"上海"、"深圳"
 ---
 
 ## 📝 更新日志
+
+### v1.4.0 (2026-06-07) 📱 Bark 增强版
+
+- ✅ Bark 支持短摘要、subtitle、分组、角标、点击跳转、长按复制
+- ✅ Bark 根据签到结果自动分级：成功安静、失败时效性提醒、Cookie 过期重点提醒
+- ✅ 支持自建 Bark Server、多设备 Key、自定义铃声、图标、配图和到期阈值
+- ✅ 修复重复签到 `Repeats` 被误判为失败的问题
 
 ### v1.3.0 (2026-06-07) 📱 Bark 推送支持
 

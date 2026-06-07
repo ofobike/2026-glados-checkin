@@ -1813,6 +1813,13 @@ def get_anniversary(data, email):
 
     return ""
 
+def is_checkin_success(message):
+    """判断 GLaDOS 签到是否成功，兼容重复签到响应。"""
+    text = str(message or "").lower()
+    if 'please checkin via' in text or 'unauthorized' in text or 'failure' in text:
+        return False
+    return any(k in text for k in ['checkin', 'repeat', 'repeats', 'already', '已签到', '签到成功'])
+
 def extract_cookie(raw: str):
     """提取 Cookie，支持 Cookie-Editor 冒号格式"""
     if not raw: return None
@@ -2402,108 +2409,278 @@ def telegram_push(token, chat_id, title, content):
         log(f"❌ Telegram 推送失败: {e}")
     return False
 
-def extract_bark_summary(content):
-    """从完整内容中提取 Bark 推送摘要（关键信息）"""
-    lines = content.split('\n')
+def _env_flag(name, default=False):
+    """读取布尔环境变量。"""
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return default
+    return str(raw).strip().lower() in ("1", "true", "yes", "on", "y")
+
+
+def _env_int(name, default=None):
+    """读取整数环境变量。"""
+    raw = os.environ.get(name)
+    if raw is None or raw == "":
+        return default
+    try:
+        return int(raw)
+    except:
+        return default
+
+
+def _env_text(name, default=""):
+    """读取文本环境变量，空字符串也视为未配置。"""
+    value = os.environ.get(name)
+    if value is None or str(value).strip() == "":
+        return default
+    return str(value).strip()
+
+
+def _shorten(text, limit):
+    text = str(text or "")
+    if len(text) <= limit:
+        return text
+    return text[:max(limit - 3, 0)] + "..."
+
+
+def _parse_int(value):
+    try:
+        return int(float(str(value).strip()))
+    except:
+        return None
+
+
+def _split_bark_keys(raw):
+    """支持单个 Key、多个 Key、完整 Bark URL。"""
+    if not raw:
+        return []
+    parts = re.split(r'[\n,;&]+', raw)
+    return [p.strip().rstrip('/') for p in parts if p.strip()]
+
+
+def _bark_endpoint(key, api_host):
+    if key.startswith("http://") or key.startswith("https://"):
+        return key
+    return f"{api_host.rstrip('/')}/{key}"
+
+
+def _github_actions_url():
+    repo = os.environ.get("GITHUB_REPOSITORY")
+    server = os.environ.get("GITHUB_SERVER_URL", "https://github.com").rstrip("/")
+    if repo:
+        return f"{server}/{repo}/actions"
+    return "https://github.com"
+
+
+def _bark_min_days(accounts):
+    days_values = []
+    for acc in accounts or []:
+        days = _parse_int(acc.get('days'))
+        if days is not None:
+            days_values.append(days)
+    return min(days_values) if days_values else None
+
+
+def extract_bark_summary(content, accounts=None, success_cnt=None, total_cnt=None, expired_cookies=None):
+    """从完整内容中提取适合锁屏展示的 Bark 摘要。"""
+    lines = [line.strip() for line in content.split('\n') if line.strip()]
     summary_parts = []
+    total = total_cnt if total_cnt is not None else len(accounts or [])
+    expired_cookies = expired_cookies or []
 
-    # 提取关键信息
+    if total:
+        summary_parts.append(f"签到: 成功 {success_cnt}/{total}")
+    if expired_cookies:
+        summary_parts.append(f"Cookie 异常: 账号 {', '.join(str(i) for i in expired_cookies)}")
+
+    for acc in (accounts or [])[:3]:
+        icon = "✅" if acc.get('ok') else "❌"
+        summary_parts.append(
+            f"{icon} {mask_email(str(acc.get('email', '?')))} | {acc.get('points', '?')}分 | {acc.get('days', '?')}天"
+        )
+    if accounts and len(accounts) > 3:
+        summary_parts.append(f"... 还有 {len(accounts) - 3} 个账号")
+
+    wanted = (
+        '签到结果', '本次获得', '连续签到', '本月签到', '月度目标',
+        '可兑换', '紧急续期', '即将到期', '到期日期'
+    )
     for line in lines:
-        line = line.strip()
-        if not line:
-            continue
+        if any(key in line for key in wanted) and line not in summary_parts:
+            summary_parts.append(line)
+        if len("\n".join(summary_parts)) >= 420:
+            break
 
-        # 积分信息
-        if '当前积分' in line or '积分' in line:
-            summary_parts.append(line)
-        # 签到结果
-        elif '签到结果' in line or 'Checkin' in line or 'Repeats' in line:
-            summary_parts.append(line)
-        # 剩余天数
-        elif '剩余天数' in line or '天数' in line:
-            summary_parts.append(line)
-        # 本次获得
-        elif '本次获得' in line:
-            summary_parts.append(line)
-        # 连续签到
-        elif '连续签到' in line:
-            summary_parts.append(line)
-        # 会员到期
-        elif '到期' in line or '续期' in line:
-            summary_parts.append(line)
-        # 签到率
-        elif '签到率' in line or '本月签到' in line:
-            summary_parts.append(line)
-
-    # 如果没有提取到关键信息，返回前 3 行
     if not summary_parts:
-        summary_parts = [line for line in lines[:3] if line.strip()]
+        summary_parts = lines[:3]
 
-    # 组合摘要，限制在 500 字符以内
-    summary = '\n'.join(summary_parts)
-    if len(summary) > 500:
-        summary = summary[:497] + '...'
+    return _shorten('\n'.join(summary_parts), 480)
 
-    return summary
 
-def bark_push(key, title, content):
-    """Bark 推送（iOS 原生推送）"""
-    if not key:
+def _bark_subtitle(success_cnt, total_cnt, accounts, expired_cookies):
+    parts = []
+    if total_cnt:
+        parts.append(f"成功 {success_cnt}/{total_cnt}")
+    min_days = _bark_min_days(accounts)
+    if min_days is not None:
+        parts.append(f"最少剩余 {min_days} 天")
+    if expired_cookies:
+        parts.append("Cookie 异常")
+    return " · ".join(parts)
+
+
+def _bark_level(success_cnt, total_cnt, accounts, expired_cookies):
+    min_days = _bark_min_days(accounts)
+    has_fail = total_cnt is not None and success_cnt is not None and success_cnt < total_cnt
+
+    if expired_cookies:
+        if _env_flag("BARK_CRITICAL_ON_EXPIRE", False):
+            return _env_text("BARK_LEVEL_EXPIRED", "critical")
+        return _env_text("BARK_LEVEL_EXPIRED", "timeSensitive")
+    if has_fail:
+        return _env_text("BARK_LEVEL_FAIL", "timeSensitive")
+    if min_days is not None and min_days <= _env_int("BARK_LOW_DAYS", 7):
+        return _env_text("BARK_LEVEL_LOW_DAYS", "timeSensitive")
+    return _env_text("BARK_LEVEL_SUCCESS", "passive")
+
+
+def _bark_sound(level, expired_cookies, success_cnt, total_cnt):
+    has_fail = total_cnt is not None and success_cnt is not None and success_cnt < total_cnt
+    if expired_cookies:
+        return _env_text("BARK_SOUND_EXPIRED", "alarm")
+    if has_fail or level in ("timeSensitive", "critical"):
+        return _env_text("BARK_SOUND_FAIL", "alarm")
+    return _env_text("BARK_SOUND_SUCCESS", "birdsong")
+
+
+def _bark_badge(accounts, success_cnt, total_cnt, expired_cookies):
+    forced = _env_int("BARK_BADGE")
+    if forced is not None:
+        return forced
+
+    mode = os.environ.get("BARK_BADGE_MODE", "days").strip().lower()
+    if mode in ("", "off", "none", "false", "0"):
+        return None
+    if mode == "success":
+        return success_cnt
+    if mode in ("fail", "failed"):
+        return max((total_cnt or 0) - (success_cnt or 0), len(expired_cookies or []))
+    if mode == "days":
+        return _bark_min_days(accounts)
+    return None
+
+
+def _bark_target_url(success_cnt, total_cnt, expired_cookies):
+    has_fail = total_cnt is not None and success_cnt is not None and success_cnt < total_cnt
+    if expired_cookies:
+        return _env_text("BARK_URL_EXPIRED", "https://glados.cloud/console/checkin")
+    if has_fail:
+        return _env_text("BARK_URL_FAIL", _github_actions_url())
+    return _env_text("BARK_URL_SUCCESS", "https://glados.cloud/console/checkin")
+
+
+def _bark_payload(title, content, accounts=None, success_cnt=None, total_cnt=None, expired_cookies=None):
+    accounts = accounts or []
+    expired_cookies = expired_cookies or []
+    level = _bark_level(success_cnt, total_cnt, accounts, expired_cookies)
+    body = extract_bark_summary(content, accounts, success_cnt, total_cnt, expired_cookies)
+
+    data = {
+        "title": title,
+        "subtitle": _bark_subtitle(success_cnt, total_cnt, accounts, expired_cookies),
+        "body": body,
+        "group": _env_text("BARK_GROUP", "GLaDOS"),
+        "sound": _bark_sound(level, expired_cookies, success_cnt, total_cnt),
+        "level": level,
+        "url": _bark_target_url(success_cnt, total_cnt, expired_cookies),
+        "copy": _shorten(f"{title}\n\n{body}\n\n{content}", 4000),
+    }
+
+    if _env_flag("BARK_ARCHIVE", True):
+        data["isArchive"] = "1"
+
+    badge = _bark_badge(accounts, success_cnt, total_cnt, expired_cookies)
+    if badge is not None:
+        data["badge"] = max(0, badge)
+
+    optional_envs = {
+        "BARK_ICON": "icon",
+        "BARK_IMAGE": "image",
+        "BARK_CATEGORY": "category",
+        "BARK_ACTION": "action",
+    }
+    for env_name, payload_key in optional_envs.items():
+        value = _env_text(env_name)
+        if value:
+            data[payload_key] = value
+
+    ttl = _env_int("BARK_TTL")
+    if ttl is not None:
+        data["ttl"] = max(0, ttl)
+
+    volume = _env_int("BARK_VOLUME")
+    if volume is not None:
+        data["volume"] = str(max(0, min(volume, 10)))
+
+    if _env_flag("BARK_AUTO_COPY", False):
+        data["autoCopy"] = "1"
+
+    if expired_cookies and _env_flag("BARK_CALL_ON_EXPIRE", False):
+        data["call"] = "1"
+
+    return {k: v for k, v in data.items() if v not in (None, "")}
+
+
+def bark_push(key, title, content, accounts=None, success_cnt=None, total_cnt=None, expired_cookies=None):
+    """Bark 推送（iOS 原生推送，支持分级、角标、跳转、复制、多设备）。"""
+    keys = _split_bark_keys(key)
+    if not keys:
         log("⚠️ Bark: 未配置 BARK_KEY，跳过推送")
         return False
 
-    log(f"📱 Bark 推送开始...")
-    log(f"   Key: {key[:6]}...{key[-4:]}" if len(key) > 10 else f"   Key: {key}")
+    api_host = _env_text("BARK_SERVER", "https://api.day.app").rstrip("/")
+    data = _bark_payload(title, content, accounts, success_cnt, total_cnt, expired_cookies)
 
-    # Bark API 地址
-    api_host = "https://api.day.app"
+    log("📱 Bark 推送开始...")
+    log(f"   设备数: {len(keys)}")
+    log(f"   请求地址: {api_host}")
+    log(f"   标题: {title}")
+    log(f"   级别: {data.get('level')} | 声音: {data.get('sound')} | 角标: {data.get('badge', '未设置')}")
+    log(f"   内容长度: {len(data.get('body', ''))} 字符")
 
-    # 提取关键信息用于 Bark 推送（Bark 有长度限制，建议不超过 500 字符）
-    bark_body = extract_bark_summary(content)
+    ok_count = 0
+    for one_key in keys:
+        try:
+            url = _bark_endpoint(one_key, api_host)
+            resp = requests.post(url, json=data, timeout=15)
+            log(f"   响应状态: HTTP {resp.status_code}")
+            log(f"   响应内容: {resp.text[:200]}")
 
-    try:
-        url = f"{api_host}/{key}"
-        data = {
-            "title": title,
-            "body": bark_body,
-            "group": "GLaDOS",
-            "sound": "birdsong",
-            "isArchive": 1,  # 保存到历史记录
-            "url": "https://glados.cloud"  # 点击跳转到 GLaDOS
-        }
-        log(f"   请求地址: {api_host}")
-        log(f"   标题: {title}")
-        log(f"   内容长度: {len(bark_body)} 字符")
-
-        resp = requests.post(url, json=data, timeout=15)
-        log(f"   响应状态: HTTP {resp.status_code}")
-        log(f"   响应内容: {resp.text[:200]}")
-
-        if resp.status_code == 200:
-            result = resp.json()
-            if result.get('code') == 200:
-                log("✅ Bark 推送成功!")
-                return True
-            else:
+            if resp.status_code == 200:
+                result = resp.json()
+                if result.get('code') == 200:
+                    ok_count += 1
+                    continue
                 log(f"❌ Bark 推送失败: {result.get('message', 'Unknown error')}")
-                return False
-        else:
-            log(f"❌ Bark 推送失败: HTTP {resp.status_code}")
-            return False
-    except requests.exceptions.SSLError as e:
-        log(f"❌ Bark 推送失败: SSL 连接错误 - {e}")
-        log("   提示: 可能是网络环境限制，GitHub Actions 上应该可以正常工作")
-        return False
-    except requests.exceptions.ConnectionError as e:
-        log(f"❌ Bark 推送失败: 连接错误 - {e}")
-        log("   提示: 无法连接到 Bark API 服务器")
-        return False
-    except requests.exceptions.Timeout as e:
-        log(f"❌ Bark 推送失败: 请求超时 - {e}")
-        return False
-    except Exception as e:
-        log(f"❌ Bark 推送失败: {type(e).__name__}: {e}")
-        return False
+            else:
+                log(f"❌ Bark 推送失败: HTTP {resp.status_code}")
+        except requests.exceptions.SSLError as e:
+            log(f"❌ Bark 推送失败: SSL 连接错误 - {e}")
+            log("   提示: 可能是网络环境限制，GitHub Actions 上应该可以正常工作")
+        except requests.exceptions.ConnectionError as e:
+            log(f"❌ Bark 推送失败: 连接错误 - {e}")
+            log("   提示: 无法连接到 Bark API 服务器")
+        except requests.exceptions.Timeout as e:
+            log(f"❌ Bark 推送失败: 请求超时 - {e}")
+        except Exception as e:
+            log(f"❌ Bark 推送失败: {type(e).__name__}: {e}")
+
+    if ok_count == len(keys):
+        log("✅ Bark 推送成功!")
+        return True
+    if ok_count > 0:
+        log(f"⚠️ Bark 部分推送成功: {ok_count}/{len(keys)}")
+    return False
 
 def send_alert(title, content):
     """发送过期/异常告警（仅推送到钉钉和Server酱）"""
@@ -2914,7 +3091,7 @@ def main():
         g.get_points()
 
         # 3. Log
-        checkin_ok = "Checkin" in msg
+        checkin_ok = is_checkin_success(msg)
         log(f"用户: {g.email} | 积分: {g.points} | 天数: {g.left_days} | 结果: {msg}")
 
         if checkin_ok:
@@ -3035,7 +3212,15 @@ def main():
             ok = dingtalk(ding_token, title, text_content)
             push_status.append(("钉钉", ok))
         if bark_key:
-            ok = bark_push(bark_key, title, text_content)
+            ok = bark_push(
+                bark_key,
+                title,
+                text_content,
+                accounts=accounts,
+                success_cnt=success_cnt,
+                total_cnt=len(cookies),
+                expired_cookies=expired_cookies,
+            )
             push_status.append(("Bark", ok))
 
         # 推送状态汇总

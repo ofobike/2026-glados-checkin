@@ -217,7 +217,8 @@ git push origin main --force
 | `serverchan()` 函数 | Server酱推送（Markdown） |
 | `dingtalk()` 函数 | 钉钉推送（Markdown） |
 | `telegram_push()` 函数 | Telegram 推送（HTML） |
-| `bark_push()` 函数 | Bark 推送（iOS 原生推送） |
+| `bark_push()` 函数 | Bark 增强推送（iOS 原生推送） |
+| `_bark_*()` / `extract_bark_summary()` 函数 | Bark 摘要、分级、角标、跳转、复制、多设备等增强逻辑 |
 | `APPLE_HTML_TEMPLATE` 常量 | PushPlus Apple 风格 HTML/CSS 模板 |
 | `_text_to_apple_html()` 函数 | 纯文本→Apple HTML 转换 |
 | `_text_to_telegram_html()` 函数 | 纯文本→Telegram HTML 转换 |
@@ -294,6 +295,16 @@ git push origin main --force
 | `SEND_KEY` | 无 | Server酱 |
 | `DINGTALK_TOKEN` | 无 | 钉钉 |
 | `BARK_KEY` | 无 | Bark（iOS 推送） |
+| `BARK_SERVER` | `https://api.day.app` | Bark 服务地址 |
+| `BARK_GROUP` | `GLaDOS` | Bark 通知分组 |
+| `BARK_BADGE_MODE` | `days` | Bark 角标模式 |
+| `BARK_BADGE` | 无 | Bark 固定角标 |
+| `BARK_LOW_DAYS` | `7` | Bark 到期升级提醒阈值 |
+| `BARK_LEVEL_*` / `BARK_SOUND_*` / `BARK_URL_*` | 按结果默认 | Bark 分级、铃声和跳转 |
+| `BARK_ICON` / `BARK_IMAGE` | 无 | Bark 图标和配图 |
+| `BARK_ACTION` / `BARK_CATEGORY` | 无 | Bark 点击动作和通知分类 |
+| `BARK_CALL_ON_EXPIRE` / `BARK_AUTO_COPY` / `BARK_ARCHIVE` | `false` / `false` / `true` | Bark 电话式提醒、自动复制和归档 |
+| `BARK_TTL` / `BARK_VOLUME` | 无 | Bark 保留时间和 critical 音量 |
 | `WEATHER_CITY` | `杭州` | 天气城市 |
 | `CHECKIN_HOURS` | `09:30,21:30` | 签到时间 |
 | `MONTHLY_GOAL` | `25` | 月度目标 |

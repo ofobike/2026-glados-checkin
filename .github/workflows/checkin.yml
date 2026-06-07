@@ -41,6 +41,31 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           BARK_KEY: ${{ secrets.BARK_KEY }}
+          BARK_SERVER: ${{ secrets.BARK_SERVER }}
+          BARK_GROUP: ${{ secrets.BARK_GROUP }}
+          BARK_ICON: ${{ secrets.BARK_ICON }}
+          BARK_IMAGE: ${{ secrets.BARK_IMAGE }}
+          BARK_ACTION: ${{ secrets.BARK_ACTION }}
+          BARK_CATEGORY: ${{ secrets.BARK_CATEGORY }}
+          BARK_BADGE_MODE: ${{ secrets.BARK_BADGE_MODE }}
+          BARK_BADGE: ${{ secrets.BARK_BADGE }}
+          BARK_LEVEL_SUCCESS: ${{ secrets.BARK_LEVEL_SUCCESS }}
+          BARK_LEVEL_FAIL: ${{ secrets.BARK_LEVEL_FAIL }}
+          BARK_LEVEL_LOW_DAYS: ${{ secrets.BARK_LEVEL_LOW_DAYS }}
+          BARK_LEVEL_EXPIRED: ${{ secrets.BARK_LEVEL_EXPIRED }}
+          BARK_SOUND_SUCCESS: ${{ secrets.BARK_SOUND_SUCCESS }}
+          BARK_SOUND_FAIL: ${{ secrets.BARK_SOUND_FAIL }}
+          BARK_SOUND_EXPIRED: ${{ secrets.BARK_SOUND_EXPIRED }}
+          BARK_URL_SUCCESS: ${{ secrets.BARK_URL_SUCCESS }}
+          BARK_URL_FAIL: ${{ secrets.BARK_URL_FAIL }}
+          BARK_URL_EXPIRED: ${{ secrets.BARK_URL_EXPIRED }}
+          BARK_LOW_DAYS: ${{ secrets.BARK_LOW_DAYS }}
+          BARK_CALL_ON_EXPIRE: ${{ secrets.BARK_CALL_ON_EXPIRE }}
+          BARK_CRITICAL_ON_EXPIRE: ${{ secrets.BARK_CRITICAL_ON_EXPIRE }}
+          BARK_AUTO_COPY: ${{ secrets.BARK_AUTO_COPY }}
+          BARK_ARCHIVE: ${{ secrets.BARK_ARCHIVE }}
+          BARK_TTL: ${{ secrets.BARK_TTL }}
+          BARK_VOLUME: ${{ secrets.BARK_VOLUME }}
           # 可选配置
           PUSH_LEVEL: ${{ secrets.PUSH_LEVEL }}
           WEATHER_CITY: ${{ secrets.WEATHER_CITY }}
@@ -67,6 +92,31 @@ jobs:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           BARK_KEY: ${{ secrets.BARK_KEY }}
+          BARK_SERVER: ${{ secrets.BARK_SERVER }}
+          BARK_GROUP: ${{ secrets.BARK_GROUP }}
+          BARK_ICON: ${{ secrets.BARK_ICON }}
+          BARK_IMAGE: ${{ secrets.BARK_IMAGE }}
+          BARK_ACTION: ${{ secrets.BARK_ACTION }}
+          BARK_CATEGORY: ${{ secrets.BARK_CATEGORY }}
+          BARK_BADGE_MODE: ${{ secrets.BARK_BADGE_MODE }}
+          BARK_BADGE: ${{ secrets.BARK_BADGE }}
+          BARK_LEVEL_SUCCESS: ${{ secrets.BARK_LEVEL_SUCCESS }}
+          BARK_LEVEL_FAIL: ${{ secrets.BARK_LEVEL_FAIL }}
+          BARK_LEVEL_LOW_DAYS: ${{ secrets.BARK_LEVEL_LOW_DAYS }}
+          BARK_LEVEL_EXPIRED: ${{ secrets.BARK_LEVEL_EXPIRED }}
+          BARK_SOUND_SUCCESS: ${{ secrets.BARK_SOUND_SUCCESS }}
+          BARK_SOUND_FAIL: ${{ secrets.BARK_SOUND_FAIL }}
+          BARK_SOUND_EXPIRED: ${{ secrets.BARK_SOUND_EXPIRED }}
+          BARK_URL_SUCCESS: ${{ secrets.BARK_URL_SUCCESS }}
+          BARK_URL_FAIL: ${{ secrets.BARK_URL_FAIL }}
+          BARK_URL_EXPIRED: ${{ secrets.BARK_URL_EXPIRED }}
+          BARK_LOW_DAYS: ${{ secrets.BARK_LOW_DAYS }}
+          BARK_CALL_ON_EXPIRE: ${{ secrets.BARK_CALL_ON_EXPIRE }}
+          BARK_CRITICAL_ON_EXPIRE: ${{ secrets.BARK_CRITICAL_ON_EXPIRE }}
+          BARK_AUTO_COPY: ${{ secrets.BARK_AUTO_COPY }}
+          BARK_ARCHIVE: ${{ secrets.BARK_ARCHIVE }}
+          BARK_TTL: ${{ secrets.BARK_TTL }}
+          BARK_VOLUME: ${{ secrets.BARK_VOLUME }}
           # 可选配置
           PUSH_LEVEL: ${{ secrets.PUSH_LEVEL }}
           WEATHER_CITY: ${{ secrets.WEATHER_CITY }}
