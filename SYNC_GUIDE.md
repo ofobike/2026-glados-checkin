@@ -304,6 +304,7 @@ git push origin main --force
 | `BARK_ICON` / `BARK_IMAGE` | 无 | Bark 图标和配图 |
 | `BARK_ACTION` / `BARK_CATEGORY` | 无 | Bark 点击动作和通知分类 |
 | `BARK_CALL_ON_EXPIRE` / `BARK_AUTO_COPY` / `BARK_ARCHIVE` | `false` / `false` / `true` | Bark 电话式提醒、自动复制和归档 |
+| `BARK_COPY_MODE` / `BARK_COPY_LIMIT` | `summary` / `800` | Bark 长按复制内容，默认限制大小以避免 413 |
 | `BARK_TTL` / `BARK_VOLUME` | 无 | Bark 保留时间和 critical 音量 |
 | `WEATHER_CITY` | `杭州` | 天气城市 |
 | `CHECKIN_HOURS` | `09:30,21:30` | 签到时间 |

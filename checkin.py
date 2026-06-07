@@ -2443,6 +2443,10 @@ def _shorten(text, limit):
     return text[:max(limit - 3, 0)] + "..."
 
 
+def _utf8_len(value):
+    return len(str(value or "").encode("utf-8"))
+
+
 def _parse_int(value):
     try:
         return int(float(str(value).strip()))
@@ -2579,6 +2583,21 @@ def _bark_target_url(success_cnt, total_cnt, expired_cookies):
     return _env_text("BARK_URL_SUCCESS", "https://glados.cloud/console/checkin")
 
 
+def _bark_copy_text(title, body, content):
+    """控制 Bark copy 字段大小，避免官方服务返回 413。"""
+    mode = _env_text("BARK_COPY_MODE", "summary").lower()
+    if mode in ("", "off", "none", "false", "0"):
+        return ""
+    limit = _env_int("BARK_COPY_LIMIT", 800)
+    if limit is None or limit <= 0:
+        limit = 800
+    if mode in ("full", "content"):
+        text = f"{title}\n\n{body}\n\n{content}"
+    else:
+        text = f"{title}\n\n{body}"
+    return _shorten(text, min(limit, 3500))
+
+
 def _bark_payload(title, content, accounts=None, success_cnt=None, total_cnt=None, expired_cookies=None):
     accounts = accounts or []
     expired_cookies = expired_cookies or []
@@ -2593,8 +2612,11 @@ def _bark_payload(title, content, accounts=None, success_cnt=None, total_cnt=Non
         "sound": _bark_sound(level, expired_cookies, success_cnt, total_cnt),
         "level": level,
         "url": _bark_target_url(success_cnt, total_cnt, expired_cookies),
-        "copy": _shorten(f"{title}\n\n{body}\n\n{content}", 4000),
     }
+
+    copy_text = _bark_copy_text(title, body, content)
+    if copy_text:
+        data["copy"] = copy_text
 
     if _env_flag("BARK_ARCHIVE", True):
         data["isArchive"] = "1"
@@ -2646,7 +2668,7 @@ def bark_push(key, title, content, accounts=None, success_cnt=None, total_cnt=No
     log(f"   请求地址: {api_host}")
     log(f"   标题: {title}")
     log(f"   级别: {data.get('level')} | 声音: {data.get('sound')} | 角标: {data.get('badge', '未设置')}")
-    log(f"   内容长度: {len(data.get('body', ''))} 字符")
+    log(f"   内容长度: {len(data.get('body', ''))} 字符 | Payload: {_utf8_len(json.dumps(data, ensure_ascii=False))} bytes")
 
     ok_count = 0
     for one_key in keys:

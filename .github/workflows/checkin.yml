@@ -63,6 +63,8 @@ jobs:
           BARK_CALL_ON_EXPIRE: ${{ secrets.BARK_CALL_ON_EXPIRE }}
           BARK_CRITICAL_ON_EXPIRE: ${{ secrets.BARK_CRITICAL_ON_EXPIRE }}
           BARK_AUTO_COPY: ${{ secrets.BARK_AUTO_COPY }}
+          BARK_COPY_MODE: ${{ secrets.BARK_COPY_MODE }}
+          BARK_COPY_LIMIT: ${{ secrets.BARK_COPY_LIMIT }}
           BARK_ARCHIVE: ${{ secrets.BARK_ARCHIVE }}
           BARK_TTL: ${{ secrets.BARK_TTL }}
           BARK_VOLUME: ${{ secrets.BARK_VOLUME }}
@@ -114,6 +116,8 @@ jobs:
           BARK_CALL_ON_EXPIRE: ${{ secrets.BARK_CALL_ON_EXPIRE }}
           BARK_CRITICAL_ON_EXPIRE: ${{ secrets.BARK_CRITICAL_ON_EXPIRE }}
           BARK_AUTO_COPY: ${{ secrets.BARK_AUTO_COPY }}
+          BARK_COPY_MODE: ${{ secrets.BARK_COPY_MODE }}
+          BARK_COPY_LIMIT: ${{ secrets.BARK_COPY_LIMIT }}
           BARK_ARCHIVE: ${{ secrets.BARK_ARCHIVE }}
           BARK_TTL: ${{ secrets.BARK_TTL }}
           BARK_VOLUME: ${{ secrets.BARK_VOLUME }}

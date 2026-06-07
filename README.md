@@ -261,6 +261,8 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | `BARK_CATEGORY`      | ❌ 否 | Bark 自定义通知分类，配合 iOS 通知动作使用。                               |
 | `BARK_LOW_DAYS`      | ❌ 否 | 剩余天数低于该值时升级 Bark 通知级别，默认 `7`。                           |
 | `BARK_CALL_ON_EXPIRE` | ❌ 否 | Cookie 过期时启用 Bark 电话式提醒：`true` / `false`，默认 `false`。         |
+| `BARK_COPY_MODE`     | ❌ 否 | Bark 长按复制内容：`summary` 摘要、`full` 完整报告、`off` 关闭。默认 `summary`。 |
+| `BARK_COPY_LIMIT`    | ❌ 否 | Bark 复制内容最大字符数，默认 `800`。                                      |
 | `PUSH_LEVEL`         | ❌ 否 | 推送级别：`all` (默认，每次均推送) 或 `fail_only` (仅有账号签到失败时推送) |
 | `WEATHER_CITY`       | ❌ 否 | 天气城市，默认 `杭州`。例如 `北京`、`上海`                                |
 | `CHECKIN_HOURS`      | ❌ 否 | 自定义签到时间，默认 `09:30,21:30`。多个时间用逗号分隔                    |
@@ -546,7 +548,7 @@ else:
 - 签到失败：自动升级为时效性提醒，并点击跳转到 GitHub Actions
 - Cookie 过期：自动升级提醒，并点击跳转到 GLaDOS 签到页
 - App 角标：默认显示所有账号里最少的剩余天数
-- 长按通知：可复制本次签到摘要和完整报告
+- 长按通知：默认复制本次签到摘要，避免请求体过大导致 Bark 返回 413
 
 高级玩法可以继续添加这些 Secret：
 
@@ -573,6 +575,8 @@ else:
 | `BARK_CALL_ON_EXPIRE` | `false` | Cookie 过期时是否启用电话式提醒 |
 | `BARK_CRITICAL_ON_EXPIRE` | `false` | Cookie 过期时是否使用 critical 级别 |
 | `BARK_AUTO_COPY` | `false` | 是否自动复制摘要（受 iOS 限制，通常需要交互） |
+| `BARK_COPY_MODE` | `summary` | 长按复制内容：`summary` / `full` / `off` |
+| `BARK_COPY_LIMIT` | `800` | 复制内容最大字符数。若 Bark 返回 413，请降低该值或设为 `off` |
 | `BARK_ARCHIVE` | `true` | 是否保存到 Bark 历史记录 |
 | `BARK_TTL` | 空 | 推送保留时间（秒） |
 | `BARK_VOLUME` | 空 | critical 提醒音量，范围 `0`-`10` |
@@ -942,6 +946,8 @@ python3 checkin.py
 ```
 
 > 💡 **Bark 用户**会看到原生 iOS 通知：成功签到默认安静提醒，失败或 Cookie 过期会自动升级提醒，App 角标默认显示最少剩余天数，长按通知可复制摘要。
+>
+> 如果 Bark 日志里出现 `HTTP 413 Request Entity Too Large`，通常是请求体太大。默认配置已避免复制完整报告；如果你手动开启了 `BARK_COPY_MODE=full`，请改回 `summary`，或降低 `BARK_COPY_LIMIT`，也可以设置 `BARK_COPY_MODE=off`。
 >
 > 💡 **PushPlus 用户**会看到 Apple 风格的卡片式 HTML 界面（渐变背景、圆角卡片、进度条动画）。
 >
