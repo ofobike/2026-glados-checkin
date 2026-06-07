@@ -209,36 +209,111 @@ git push origin main --force
 
 以下是你添加的自定义代码，在合并冲突时需要特别注意保留：
 
-### checkin.py
+### checkin.py — 推送渠道
 
 | 位置 | 内容 |
 |------|------|
-| `serverchan()` 函数 | Server酱推送逻辑 |
-| `dingtalk()` 函数 | 钉钉推送逻辑 |
-| `record_checkin_date()` 函数 | 签到日期记录 |
-| `format_heatmap()` 函数 | 签到热力图 |
+| `pushplus_push()` 函数 | PushPlus 推送（Apple 风格 HTML） |
+| `serverchan()` 函数 | Server酱推送（Markdown） |
+| `dingtalk()` 函数 | 钉钉推送（Markdown） |
+| `telegram_push()` 函数 | Telegram 推送（HTML） |
+| `APPLE_HTML_TEMPLATE` 常量 | PushPlus Apple 风格 HTML/CSS 模板 |
+| `_text_to_apple_html()` 函数 | 纯文本→Apple HTML 转换 |
+| `_text_to_telegram_html()` 函数 | 纯文本→Telegram HTML 转换 |
+
+### checkin.py — 数据统计
+
+| 位置 | 内容 |
+|------|------|
+| `record_checkin_date()` 函数 | 签到日期+时间记录 |
+| `record_checkin_time()` 函数 | 签到时间分布记录 |
+| `format_heatmap()` 函数 | 签到热力图（30天） |
 | `format_monthly_stats()` 函数 | 本月签到统计 |
+| `format_checkin_rate_trend()` 函数 | 签到率趋势（4周） |
+| `format_time_distribution()` 函数 | 签到时间分布分析 |
+| `format_monthly_goal()` 函数 | 月度签到目标 |
 | `get_max_points()` 函数 | 历史最高积分 |
 | `format_renewal_alert()` 函数 | 会员续期预警 |
 | `format_points_history_detail()` 函数 | 积分变化明细 |
-| `get_daily_fortune()` 函数 | 每日签到运势 |
-| `get_clothing_advice()` 函数 | 天气穿衣建议 |
-| `get_holiday_countdown()` 函数 | 假期倒计时 |
-| `get_sun_info()` 函数 | 日出日落时间 |
 | `get_points_prediction()` 函数 | 积分预测 |
 | `check_achievements()` 函数 | 签到成就系统 |
+| `format_achievements()` 函数 | 成就展示 |
+| `format_new_achievements()` 函数 | 新成就通知 |
+| `get_level()` 函数 | 签到等级系统 |
+| `get_anniversary()` 函数 | 签到周年纪念 |
 | `format_weekly_report()` 函数 | 周报生成 |
 | `format_monthly_report()` 函数 | 月报生成 |
 | `calc_rmb_value()` 函数 | 积分换算人民币 |
-| `export_checkin_log()` 函数 | 签到日志导出 |
-| `get_anniversary()` 函数 | 签到周年纪念 |
-| 环境变量读取 | `SEND_KEY`、`DINGTALK_TOKEN`、`WEATHER_CITY`、`CHECKIN_HOURS` |
-| 推送触发逻辑 | `if sc_key:` 和 `if ding_token:` |
-| GLaDOS.checkin() | 本次签到积分解析 |
+| `export_checkin_log()` 函数 | 签到日志导出（CSV） |
+| `cleanup_old_data()` 函数 | 自动清理旧数据（10天） |
+| `validate_cookie()` 函数 | Cookie 格式检测 |
+
+### checkin.py — 生活资讯
+
+| 位置 | 内容 |
+|------|------|
+| `get_weather()` 函数 | 天气获取 |
+| `get_clothing_advice()` 函数 | 天气穿衣建议 |
+| `get_life_index()` 函数 | 生活指数（紫外线/运动/洗车/穿衣/舒适度） |
+| `get_health_tip()` 函数 | 每日健康提示 |
+| `get_holiday_countdown()` 函数 | 假期倒计时 |
+| `get_sun_info()` 函数 | 日出日落时间 |
+| `get_lunar_info()` 函数 | 农历/节气/节日 |
+| `get_daily_news()` 函数 | 今日头条新闻 |
+| `get_crypto_forex()` 函数 | 加密货币/汇率 |
+| `get_movie_recommendation()` 函数 | 每日电影推荐 |
+| `get_today_in_history()` 函数 | 历史上的今天 |
+| `get_server_status()` 函数 | 服务器状态 |
+| `get_countdown()` 函数 | 自定义倒数日 |
+| `_load_countdown_events()` 函数 | 倒数日配置加载 |
+
+### checkin.py — 趣味内容
+
+| 位置 | 内容 |
+|------|------|
+| `get_daily_fortune()` 函数 | 每日签到运势 |
+| `get_daily_quote_en()` 函数 | 每日英语名言（Quotable API） |
+| `get_ascii_celebration()` 函数 | ASCII Art 庆祝 |
+| `get_sweet_nothing()` 函数 | 土味情话 |
+| `get_rainbow_fart()` 函数 | 彩虹屁 |
+| `get_zodiac_horoscope()` 函数 | 星座运势 |
+| `get_daily_joke()` 函数 | 每日段子 |
+| `get_riddle()` 函数 | 脑筋急转弯 |
+| `get_daily_idiom()` 函数 | 每日成语 |
+| `get_food_suggestion()` 函数 | 今天吃什么 |
+| `get_morning_greeting()` 函数 | 早安问候 |
+| `get_world_greeting()` 函数 | 世界问候语 |
+| `get_mini_game()` 函数 | 签到小游戏 |
+| `get_mood_note()` 函数 | 签到日记 |
+
+### checkin.py — 环境变量
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `SEND_KEY` | 无 | Server酱 |
+| `DINGTALK_TOKEN` | 无 | 钉钉 |
+| `WEATHER_CITY` | `杭州` | 天气城市 |
+| `CHECKIN_HOURS` | `09:30,21:30` | 签到时间 |
+| `MONTHLY_GOAL` | `25` | 月度目标 |
+| `MOOD_NOTE` | 无 | 签到日记 |
+| `ZODIAC_SIGN` | `水瓶座` | 星座 |
+| `COUNTDOWN_EVENTS` | `结婚纪念日:11-18` | 倒数日 |
+| `PUSH_LEVEL` | `all` | 推送级别 |
 
 ### checkin.yml
 
 | 配置 | 说明 |
 |------|------|
 | `on:` | 仅保留 `workflow_dispatch`（无 schedule） |
-| `env:` | 包含 `SEND_KEY` 和 `DINGTALK_TOKEN` |
+| `env:` | 包含 `SEND_KEY`、`DINGTALK_TOKEN`、`TELEGRAM_BOT_TOKEN`、`TELEGRAM_CHAT_ID` |
+
+### 同步时的关键原则
+
+> ⚠️ **核心原则**：上游更新签到核心逻辑时接受，但**永远保留你的自定义函数和推送代码**。
+>
+> 具体来说：
+> - `GLaDOS` 类的 `checkin()`、`get_status()`、`get_points()` → 接受上游更新
+> - `main()` 函数 → 保留你的推送逻辑，只更新签到流程
+> - 所有自定义函数 → 全部保留
+> - `APPLE_HTML_TEMPLATE` → 全部保留
+> - 环境变量读取 → 全部保留
