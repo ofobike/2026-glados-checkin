@@ -6,7 +6,7 @@
 功能：
 - 全自动签到
 - 精准获取当前积分 (Points)
-- Server酱/钉钉/Telegram 多渠道推送
+- Server酱/钉钉/Telegram/Bark 多渠道推送
 - 积分趋势、连续签到、价值估算
 - 签到热力图、本月统计、积分变化明细
 - 会员到期预警、本次签到积分
@@ -2402,6 +2402,35 @@ def telegram_push(token, chat_id, title, content):
         log(f"❌ Telegram 推送失败: {e}")
     return False
 
+def bark_push(key, title, content):
+    """Bark 推送（iOS 原生推送）"""
+    if not key: return False
+    try:
+        # 使用 POST 请求，支持更多参数
+        url = f"https://api.day.app/{key}"
+        # 截取内容前 100 字符作为 body（Bark 有长度限制）
+        body = content[:100] + "..." if len(content) > 100 else content
+        data = {
+            "title": title,
+            "body": body,
+            "group": "GLaDOS",
+            "sound": "birdsong",
+            "isArchive": 1  # 保存到历史记录
+        }
+        resp = requests.post(url, json=data, timeout=10)
+        if resp.status_code == 200:
+            result = resp.json()
+            if result.get('code') == 200:
+                log("✅ Bark 推送成功")
+                return True
+            else:
+                log(f"❌ Bark 推送失败: {result.get('message', 'Unknown error')}")
+        else:
+            log(f"❌ Bark 推送失败: HTTP {resp.status_code}")
+    except Exception as e:
+        log(f"❌ Bark 推送失败: {e}")
+    return False
+
 def send_alert(title, content):
     """发送过期/异常告警（仅推送到钉钉和Server酱）"""
     sc_key = os.environ.get("SEND_KEY")
@@ -2873,8 +2902,9 @@ def main():
     sc_key = os.environ.get("SEND_KEY")
     ding_token = os.environ.get("DINGTALK_TOKEN")
     pp_token = os.environ.get("PUSHPLUS_TOKEN")
+    bark_key = os.environ.get("BARK_KEY")
 
-    if (tg_token and tg_chat_id) or sc_key or ding_token or pp_token:
+    if (tg_token and tg_chat_id) or sc_key or ding_token or pp_token or bark_key:
         title = f"GLaDOS签到: 成功{success_cnt}/{len(cookies)}"
 
         # 拼接所有内容
@@ -2930,6 +2960,9 @@ def main():
         if ding_token:
             ok = dingtalk(ding_token, title, text_content)
             push_status.append(("钉钉", ok))
+        if bark_key:
+            ok = bark_push(bark_key, title, text_content)
+            push_status.append(("Bark", ok))
 
         # 推送状态汇总
         if push_status:

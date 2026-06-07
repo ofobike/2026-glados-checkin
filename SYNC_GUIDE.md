@@ -217,6 +217,7 @@ git push origin main --force
 | `serverchan()` 函数 | Server酱推送（Markdown） |
 | `dingtalk()` 函数 | 钉钉推送（Markdown） |
 | `telegram_push()` 函数 | Telegram 推送（HTML） |
+| `bark_push()` 函数 | Bark 推送（iOS 原生推送） |
 | `APPLE_HTML_TEMPLATE` 常量 | PushPlus Apple 风格 HTML/CSS 模板 |
 | `_text_to_apple_html()` 函数 | 纯文本→Apple HTML 转换 |
 | `_text_to_telegram_html()` 函数 | 纯文本→Telegram HTML 转换 |
@@ -292,6 +293,7 @@ git push origin main --force
 |------|--------|------|
 | `SEND_KEY` | 无 | Server酱 |
 | `DINGTALK_TOKEN` | 无 | 钉钉 |
+| `BARK_KEY` | 无 | Bark（iOS 推送） |
 | `WEATHER_CITY` | `杭州` | 天气城市 |
 | `CHECKIN_HOURS` | `09:30,21:30` | 签到时间 |
 | `MONTHLY_GOAL` | `25` | 月度目标 |

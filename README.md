@@ -166,7 +166,7 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | 🎁 **兑换提示**         | 显示当前可兑换选项及差额，带进度条      |
 | ⏰ **每日两次**         | 早上 9:30 + 晚上 21:30 自动签到         |
 | 🔄 **失败重试**         | 首次失败自动重试一次                    |
-| 📱 **多渠道推送**       | 微信/Telegram/钉钉/Server酱 四选一或组合 |
+| 📱 **多渠道推送**       | 微信/Telegram/钉钉/Server酱/Bark 五选一或组合 |
 | 📊 **积分趋势图**       | ASCII 趋势图展示近7天积分变化           |
 | 🔥 **连续签到统计**     | 记录连续签到天数和最佳纪录              |
 | 💰 **签到价值估算**     | 自动换算积分对应的会员天数和人民币      |
@@ -250,6 +250,7 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | `TELEGRAM_CHAT_ID`   | ❌ 否 | 接收推送的 Telegram Chat ID                                                |
 | `SEND_KEY`           | ❌ 否 | Server酱推送 Key（免费推送到微信公众号）                                   |
 | `DINGTALK_TOKEN`     | ❌ 否 | 钉钉机器人 Webhook 的 access_token                                        |
+| `BARK_KEY`           | ❌ 否 | Bark 推送 Key（iOS 推送）                                                  |
 | `PUSH_LEVEL`         | ❌ 否 | 推送级别：`all` (默认，每次均推送) 或 `fail_only` (仅有账号签到失败时推送) |
 | `WEATHER_CITY`       | ❌ 否 | 天气城市，默认 `杭州`。例如 `北京`、`上海`                                |
 | `CHECKIN_HOURS`      | ❌ 否 | 自定义签到时间，默认 `09:30,21:30`。多个时间用逗号分隔                    |
@@ -264,7 +265,7 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 
 ## 📱 推送渠道说明
 
-本项目支持 **4 种推送渠道**，可按需选择一个或多个：
+本项目支持 **5 种推送渠道**，可按需选择一个或多个：
 
 | 渠道        | 平台         | 费用 | 获取方式                                                        | 需要的变量            |
 | ----------- | ------------ | ---- | --------------------------------------------------------------- | --------------------- |
@@ -272,10 +273,11 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | **Telegram** | Telegram     | 免费 | 通过 @BotFather 创建机器人，获取 Token 和 Chat ID               | `TELEGRAM_BOT_TOKEN` + `TELEGRAM_CHAT_ID` |
 | **Server酱** | 微信公众号   | 免费 | [sct.ftqq.com](https://sct.ftqq.com) 注册获取 SendKey           | `SEND_KEY`            |
 | **钉钉**     | 钉钉         | 免费 | 创建钉钉群机器人，获取 Webhook access_token                     | `DINGTALK_TOKEN`      |
+| **Bark**     | iOS          | 免费 | App Store 下载 Bark 应用，复制 Key                              | `BARK_KEY`            |
 
-> 💡 **推荐**：如果你只选一个，推荐 **PushPlus**（配置最简单，Apple 风格卡片 UI）或 **Telegram**（最稳定）。
+> 💡 **推荐**：如果你只选一个，推荐 **PushPlus**（配置最简单，Apple 风格卡片 UI）或 **Telegram**（最稳定）。iOS 用户推荐 **Bark**（原生推送，轻量级）。
 >
-> 所有渠道的推送内容一致，PushPlus 和 Telegram 支持 HTML 美化，Server酱和钉钉使用 Markdown 格式。
+> 所有渠道的推送内容一致，PushPlus 和 Telegram 支持 HTML 美化，Server酱和钉钉使用 Markdown 格式，Bark 使用纯文本。
 
 ---
 
@@ -433,6 +435,7 @@ else:
 | `DINGTALK_TOKEN`     | 钉钉 access_token        | ❌ 否 | 钉钉群机器人推送       |
 | `TELEGRAM_BOT_TOKEN` | Telegram Bot Token       | ❌ 否 | Telegram 推送          |
 | `TELEGRAM_CHAT_ID`   | Telegram Chat ID         | ❌ 否 | Telegram 推送          |
+| `BARK_KEY`           | Bark Key                 | ❌ 否 | Bark iOS 推送          |
 | `PUSH_LEVEL`         | `all` 或 `fail_only`     | ❌ 否 | 推送级别控制           |
 
 > 💡 至少配置一个推送渠道，否则签到结果只在 Actions 日志中可见。
@@ -483,6 +486,30 @@ else:
 1. 在钉钉群中添加自定义机器人（群设置 → 智能群助手 → 添加机器人 → 自定义）
 2. 获取 Webhook 地址中的 `access_token` 参数
 3. 将 Token 添加到 GitHub Secrets，Name 填 `DINGTALK_TOKEN`
+
+</details>
+
+<details>
+<summary><b>Bark 推送（iOS 推荐）</b></summary>
+
+1. 在 App Store 搜索并下载 **Bark** 应用
+
+![Bark 应用](images/bark-app.png)
+
+2. 打开 Bark 应用，首页会显示你的 **Key**（类似 `abc123def456` 的字符串）
+
+![Bark Key](images/bark-key.png)
+
+3. 复制这个 Key
+4. 将 Key 添加到 GitHub Secrets，Name 填 `BARK_KEY`
+
+> 💡 **Bark 优势**：
+> - ✅ 完全免费，无任何限制
+> - ✅ iOS 原生推送，及时稳定
+> - ✅ 不耗电，轻量级
+> - ✅ 支持自定义铃声和分组
+>
+> 📱 **下载地址**：[App Store - Bark](https://apps.apple.com/app/bark/id1403753865)
 
 </details>
 
@@ -1042,6 +1069,12 @@ WEATHER_CITY = "你的城市"  # 例如 "北京"、"上海"、"深圳"
 ---
 
 ## 📝 更新日志
+
+### v1.3.0 (2026-06-07) 📱 Bark 推送支持
+
+- ✅ 新增 Bark 推送渠道（iOS 原生推送）
+- ✅ 完全免费，无任何限制
+- ✅ 轻量级，不耗电
 
 ### v1.2.1 (2026-06-07) 📋 同步策略更新
 
