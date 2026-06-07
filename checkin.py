@@ -114,13 +114,25 @@ def load_data():
                 ("checkin_dates", {}),
                 ("achievements", {}),
                 ("checkin_times", {}),
+                ("checkin_runs", {}),
+                ("heartbeat_alerts", {}),
+                ("exchange_alerts", {}),
             ]:
                 if key not in d:
                     d[key] = default
             return d
         except:
             pass
-    return {"points_history": {}, "checkin_streak": {}, "checkin_dates": {}, "achievements": {}, "checkin_times": {}}
+    return {
+        "points_history": {},
+        "checkin_streak": {},
+        "checkin_dates": {},
+        "achievements": {},
+        "checkin_times": {},
+        "checkin_runs": {},
+        "heartbeat_alerts": {},
+        "exchange_alerts": {},
+    }
 
 def save_data(data):
     """保存历史数据"""
@@ -154,6 +166,14 @@ def cleanup_old_data(data, keep_days=10):
             r for r in data["checkin_times"][email] if r.get("date", "") >= cutoff
         ]
         cleaned += before - len(data["checkin_times"][email])
+
+    # 清理 checkin_runs
+    for email in data.get("checkin_runs", {}):
+        before = len(data["checkin_runs"][email])
+        data["checkin_runs"][email] = [
+            r for r in data["checkin_runs"][email] if r.get("date", "") >= cutoff
+        ]
+        cleaned += before - len(data["checkin_runs"][email])
 
     if cleaned > 0:
         log(f"🧹 已清理 {cleaned} 条超过 {keep_days} 天的历史数据")
@@ -320,6 +340,119 @@ def get_next_checkin():
     # 所有时间都过了，显示明天第一个
     h, m = times[0]
     return f"⏰ 下次签到: 明天 {h:02d}:{m:02d}"
+
+
+def _parse_time_hhmm(value):
+    try:
+        return datetime.strptime(str(value).strip(), "%H:%M").time()
+    except:
+        return None
+
+
+def _configured_checkin_times():
+    raw = os.environ.get("CHECKIN_HOURS") or "09:30,21:30"
+    times = []
+    for part in raw.split(','):
+        t = _parse_time_hhmm(part)
+        if t:
+            times.append(t)
+    return sorted(times) or [_parse_time_hhmm("09:30"), _parse_time_hhmm("21:30")]
+
+
+def _current_checkin_slot(dt=None):
+    """返回当前时间之前最近的签到 slot。"""
+    dt = dt or now_bjt()
+    times = _configured_checkin_times()
+    today_slots = [
+        datetime.combine(dt.date(), t, tzinfo=BJT)
+        for t in times
+    ]
+    past = [s for s in today_slots if s <= dt]
+    if past:
+        return past[-1].time()
+    return times[-1]
+
+
+def _slot_key(dt=None, slot_time=None):
+    dt = dt or now_bjt()
+    slot_time = slot_time or _current_checkin_slot(dt)
+    return f"{dt.strftime('%Y-%m-%d')} {slot_time.strftime('%H:%M')}"
+
+
+def record_checkin_run(data, email, checkin_ok, message, points=None, days=None):
+    """记录每个账号每次 slot 的签到结果，供心跳监控使用。"""
+    if "checkin_runs" not in data:
+        data["checkin_runs"] = {}
+    if email not in data["checkin_runs"]:
+        data["checkin_runs"][email] = []
+
+    now = now_bjt()
+    slot = _slot_key(now)
+    record = {
+        "date": now.strftime('%Y-%m-%d'),
+        "slot": slot,
+        "time": now.strftime('%Y-%m-%d %H:%M:%S'),
+        "ok": bool(checkin_ok),
+        "message": str(message or "")[:120],
+        "points": str(points if points is not None else "?"),
+        "days": str(days if days is not None else "?"),
+    }
+    runs = data["checkin_runs"][email]
+    replaced = False
+    for idx, old in enumerate(runs):
+        if old.get("slot") == slot:
+            runs[idx] = record
+            replaced = True
+            break
+    if not replaced:
+        runs.append(record)
+    data["checkin_runs"][email] = runs[-80:]
+
+
+def _heartbeat_grace_minutes():
+    value = _env_int("HEARTBEAT_GRACE_MINUTES", 12)
+    if value is None:
+        return 12
+    return max(1, value)
+
+
+def _heartbeat_slot_due(now=None):
+    now = now or now_bjt()
+    slot_time = _current_checkin_slot(now)
+    slot_dt = datetime.combine(now.date(), slot_time, tzinfo=BJT)
+    due_dt = slot_dt + timedelta(minutes=_heartbeat_grace_minutes())
+    return slot_time, slot_dt, due_dt, now >= due_dt
+
+
+def _slot_has_success(data, slot):
+    for runs in data.get("checkin_runs", {}).values():
+        for r in runs:
+            if r.get("slot") == slot and r.get("ok"):
+                return True
+    return False
+
+
+def _heartbeat_already_alerted(data, slot):
+    return data.get("heartbeat_alerts", {}).get(slot) == now_bjt().strftime('%Y-%m-%d')
+
+
+def _mark_heartbeat_alerted(data, slot):
+    if "heartbeat_alerts" not in data:
+        data["heartbeat_alerts"] = {}
+    data["heartbeat_alerts"][slot] = now_bjt().strftime('%Y-%m-%d')
+
+
+def _recent_run_summary(data, limit=5):
+    rows = []
+    for email, runs in data.get("checkin_runs", {}).items():
+        for r in runs[-limit:]:
+            rows.append((r.get("time", ""), email, r))
+    rows.sort(reverse=True)
+    lines = []
+    for _, email, r in rows[:limit]:
+        icon = "✅" if r.get("ok") else "❌"
+        lines.append(f"{icon} {mask_email(email)} | {r.get('slot', '?')} | {r.get('message', '')}")
+    return "\n".join(lines)
 
 # ================= 签到热力图 =================
 
@@ -2653,20 +2786,19 @@ def _bark_payload(title, content, accounts=None, success_cnt=None, total_cnt=Non
     return {k: v for k, v in data.items() if v not in (None, "")}
 
 
-def bark_push(key, title, content, accounts=None, success_cnt=None, total_cnt=None, expired_cookies=None):
-    """Bark 推送（iOS 原生推送，支持分级、角标、跳转、复制、多设备）。"""
+def _send_bark_payload(key, data):
+    """发送已经组装好的 Bark payload。"""
     keys = _split_bark_keys(key)
     if not keys:
         log("⚠️ Bark: 未配置 BARK_KEY，跳过推送")
         return False
 
     api_host = _env_text("BARK_SERVER", "https://api.day.app").rstrip("/")
-    data = _bark_payload(title, content, accounts, success_cnt, total_cnt, expired_cookies)
 
     log("📱 Bark 推送开始...")
     log(f"   设备数: {len(keys)}")
     log(f"   请求地址: {api_host}")
-    log(f"   标题: {title}")
+    log(f"   标题: {data.get('title', '')}")
     log(f"   级别: {data.get('level')} | 声音: {data.get('sound')} | 角标: {data.get('badge', '未设置')}")
     log(f"   内容长度: {len(data.get('body', ''))} 字符 | Payload: {_utf8_len(json.dumps(data, ensure_ascii=False))} bytes")
 
@@ -2703,6 +2835,148 @@ def bark_push(key, title, content, accounts=None, success_cnt=None, total_cnt=No
     if ok_count > 0:
         log(f"⚠️ Bark 部分推送成功: {ok_count}/{len(keys)}")
     return False
+
+
+def bark_push(key, title, content, accounts=None, success_cnt=None, total_cnt=None, expired_cookies=None):
+    """Bark 推送（iOS 原生推送，支持分级、角标、跳转、复制、多设备）。"""
+    data = _bark_payload(title, content, accounts, success_cnt, total_cnt, expired_cookies)
+    return _send_bark_payload(key, data)
+
+
+def bark_event_push(key, title, body, level="active", sound="birdsong", group_suffix="提醒", url=None, copy_text=None):
+    """发送独立事件类 Bark 通知，例如心跳告警、兑换提醒。"""
+    if not key:
+        log("⚠️ Bark: 未配置 BARK_KEY，跳过事件推送")
+        return False
+
+    group = _env_text("BARK_GROUP", "GLaDOS")
+    if group_suffix:
+        group = f"{group}/{group_suffix}"
+
+    data = {
+        "title": title,
+        "body": _shorten(body, _env_int("BARK_EVENT_BODY_LIMIT", 480) or 480),
+        "group": group,
+        "sound": sound,
+        "level": level,
+        "url": url or "https://glados.cloud/console/checkin",
+        "copy": _shorten(copy_text or body, _env_int("BARK_COPY_LIMIT", 800) or 800),
+    }
+    if _env_flag("BARK_ARCHIVE", True):
+        data["isArchive"] = "1"
+    if _env_flag("BARK_AUTO_COPY", False):
+        data["autoCopy"] = "1"
+
+    return _send_bark_payload(key, {k: v for k, v in data.items() if v not in (None, "")})
+
+
+def send_heartbeat_check():
+    """检查最近一个签到 slot 是否成功运行，未成功则 Bark 告警。"""
+    log("💓 GLaDOS 心跳监控开始...")
+    data = load_data()
+    bark_key = os.environ.get("BARK_KEY")
+    if not bark_key:
+        log("⚠️ 未配置 BARK_KEY，无法发送心跳告警")
+        return
+
+    slot_time, slot_dt, due_dt, due = _heartbeat_slot_due()
+    slot = _slot_key(slot_dt, slot_time)
+    if not due and not _env_flag("HEARTBEAT_FORCE", False):
+        log(f"⏭️ 当前 slot {slot} 尚未到告警时间，预计 {due_dt.strftime('%H:%M')} 后检查")
+        return
+
+    if _slot_has_success(data, slot):
+        log(f"✅ 心跳正常: {slot} 已有成功签到记录")
+        return
+
+    if _heartbeat_already_alerted(data, slot) and not _env_flag("HEARTBEAT_FORCE", False):
+        log(f"⏭️ 心跳告警已发送过: {slot}")
+        return
+
+    recent = _recent_run_summary(data) or "暂无历史成功记录，可能是首次运行或缓存未恢复。"
+    body = (
+        f"未检测到 {slot} 的成功签到记录。\n\n"
+        f"建议检查 cron-job.org 是否触发了 GitHub Actions，或查看 Actions 最近运行状态。\n\n"
+        f"最近记录:\n{recent}"
+    )
+    ok = bark_event_push(
+        bark_key,
+        f"GLaDOS 心跳告警: {slot_time.strftime('%H:%M')} 未签到",
+        body,
+        level=_env_text("HEARTBEAT_BARK_LEVEL", "timeSensitive"),
+        sound=_env_text("HEARTBEAT_BARK_SOUND", "alarm"),
+        group_suffix="心跳",
+        url=_env_text("HEARTBEAT_BARK_URL", _github_actions_url()),
+    )
+    if ok:
+        _mark_heartbeat_alerted(data, slot)
+        save_data(data)
+        log(f"📣 心跳告警已发送: {slot}")
+
+
+def _exchange_alert_key(email, need):
+    digest = hashlib.md5(str(email).encode('utf-8')).hexdigest()[:8]
+    return f"{digest}:{need}"
+
+
+def _ready_exchange_plans(g):
+    try:
+        points = int(g.points)
+    except:
+        points = 0
+    plans = []
+    for plan in getattr(g, "plans_list", []):
+        plans.append({
+            "need": plan.get("need"),
+            "days": plan.get("days"),
+            "points": points,
+            "ready": bool(plan.get("ready")),
+        })
+    return plans
+
+
+def send_exchange_alerts(data, account_events):
+    """积分达到兑换档位时发送独立 Bark 提醒，每天每档只提醒一次。"""
+    if not _env_flag("EXCHANGE_ALERT_ENABLED", True):
+        return
+    bark_key = os.environ.get("BARK_KEY")
+    if not bark_key:
+        return
+    if "exchange_alerts" not in data:
+        data["exchange_alerts"] = {}
+
+    sent = 0
+    for item in account_events:
+        email = item.get("email", "?")
+        for plan in item.get("plans", []):
+            key = _exchange_alert_key(email, plan.get("need"))
+            if not plan.get("ready"):
+                data["exchange_alerts"].pop(key, None)
+                continue
+            if data["exchange_alerts"].get(key):
+                continue
+            title = f"GLaDOS 可兑换 {plan.get('days')} 天"
+            body = (
+                f"{mask_email(email)} 积分已达到 {plan.get('need')} 分。\n"
+                f"当前积分: {plan.get('points')} 分\n"
+                f"可兑换: {plan.get('days')} 天会员\n\n"
+                f"点击打开 GLaDOS 积分页面处理。"
+            )
+            ok = bark_event_push(
+                bark_key,
+                title,
+                body,
+                level=_env_text("EXCHANGE_BARK_LEVEL", "timeSensitive"),
+                sound=_env_text("EXCHANGE_BARK_SOUND", "bell"),
+                group_suffix="兑换",
+                url=_env_text("EXCHANGE_BARK_URL", "https://glados.cloud/console/checkin"),
+            )
+            if ok:
+                data["exchange_alerts"][key] = now_bjt().strftime('%Y-%m-%d %H:%M:%S')
+                sent += 1
+
+    if sent:
+        log(f"🎁 已发送 {sent} 条兑换提醒")
 
 def send_alert(title, content):
     """发送过期/异常告警（仅推送到钉钉和Server酱）"""
@@ -3084,6 +3358,7 @@ def main():
     accounts = []          # 多账号汇总
     success_cnt = 0
     expired_cookies = []
+    exchange_events = []
 
     for i, cookie in enumerate(cookies, 1):
         g = GLaDOS(cookie)
@@ -3126,7 +3401,14 @@ def main():
         except:
             pts = 0
         record_points(data, g.email, pts)
+        record_checkin_run(data, g.email, checkin_ok, msg, g.points, g.left_days)
         streak = update_streak(data, g.email, checkin_ok)
+        ready_plans = _ready_exchange_plans(g)
+        if ready_plans:
+            exchange_events.append({
+                'email': g.email,
+                'plans': ready_plans,
+            })
 
         # 5. 统一纯文本格式（传入天气用于穿衣建议）
         results.append(format_dingtalk_message(g, msg, checkin_ok, data, streak, weather_text))
@@ -3144,6 +3426,7 @@ def main():
 
     # 保存历史数据（先清理再保存）
     cleanup_old_data(data, keep_days=10)
+    send_exchange_alerts(data, exchange_events)
     save_data(data)
     log(f"📁 历史数据已保存")
 
@@ -3251,4 +3534,8 @@ def main():
             log(f"📱 推送状态: {' | '.join(status_parts)}")
 
 if __name__ == '__main__':
-    main()
+    run_mode = (os.environ.get("RUN_MODE") or os.environ.get("GLADOS_RUN_MODE") or "checkin").lower()
+    if run_mode in ("heartbeat", "check_heartbeat"):
+        send_heartbeat_check()
+    else:
+        main()

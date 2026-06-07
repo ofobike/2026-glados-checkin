@@ -247,6 +247,8 @@ git push origin main --force
 | `format_monthly_report()` 函数 | 月报生成 |
 | `calc_rmb_value()` 函数 | 积分换算人民币 |
 | `export_checkin_log()` 函数 | 签到日志导出（CSV） |
+| `record_checkin_run()` / `send_heartbeat_check()` 函数 | 签到心跳监控 |
+| `send_exchange_alerts()` / `_ready_exchange_plans()` 函数 | 积分可兑换 Bark 提醒 |
 | `cleanup_old_data()` 函数 | 自动清理旧数据（10天） |
 | `validate_cookie()` 函数 | Cookie 格式检测 |
 
@@ -306,6 +308,11 @@ git push origin main --force
 | `BARK_CALL_ON_EXPIRE` / `BARK_AUTO_COPY` / `BARK_ARCHIVE` | `false` / `false` / `true` | Bark 电话式提醒、自动复制和归档 |
 | `BARK_COPY_MODE` / `BARK_COPY_LIMIT` | `summary` / `800` | Bark 长按复制内容，默认限制大小以避免 413 |
 | `BARK_TTL` / `BARK_VOLUME` | 无 | Bark 保留时间和 critical 音量 |
+| `RUN_MODE` | `checkin` | 运行模式，`heartbeat` 只检查心跳 |
+| `HEARTBEAT_GRACE_MINUTES` | `12` | 签到后多少分钟未成功才告警 |
+| `HEARTBEAT_BARK_LEVEL` / `HEARTBEAT_BARK_SOUND` / `HEARTBEAT_BARK_URL` | `timeSensitive` / `alarm` / Actions 页 | 心跳 Bark 告警 |
+| `EXCHANGE_ALERT_ENABLED` | `true` | 积分可兑换提醒开关 |
+| `EXCHANGE_BARK_LEVEL` / `EXCHANGE_BARK_SOUND` / `EXCHANGE_BARK_URL` | `timeSensitive` / `bell` / GLaDOS 页 | 兑换 Bark 提醒 |
 | `WEATHER_CITY` | `杭州` | 天气城市 |
 | `CHECKIN_HOURS` | `09:30,21:30` | 签到时间 |
 | `MONTHLY_GOAL` | `25` | 月度目标 |

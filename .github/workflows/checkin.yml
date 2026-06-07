@@ -2,6 +2,11 @@ name: GLaDOS 2026 Checkin
 
 on:
   workflow_dispatch:  # 仅保留手动触发（定时由 cron-job.org 管理）
+    inputs:
+      mode:
+        description: '运行模式：checkin=签到，heartbeat=心跳监控'
+        required: false
+        default: 'checkin'
 
 jobs:
   checkin:
@@ -69,6 +74,15 @@ jobs:
           BARK_TTL: ${{ secrets.BARK_TTL }}
           BARK_VOLUME: ${{ secrets.BARK_VOLUME }}
           # 可选配置
+          RUN_MODE: ${{ github.event.inputs.mode || 'checkin' }}
+          HEARTBEAT_GRACE_MINUTES: ${{ secrets.HEARTBEAT_GRACE_MINUTES }}
+          HEARTBEAT_BARK_LEVEL: ${{ secrets.HEARTBEAT_BARK_LEVEL }}
+          HEARTBEAT_BARK_SOUND: ${{ secrets.HEARTBEAT_BARK_SOUND }}
+          HEARTBEAT_BARK_URL: ${{ secrets.HEARTBEAT_BARK_URL }}
+          EXCHANGE_ALERT_ENABLED: ${{ secrets.EXCHANGE_ALERT_ENABLED }}
+          EXCHANGE_BARK_LEVEL: ${{ secrets.EXCHANGE_BARK_LEVEL }}
+          EXCHANGE_BARK_SOUND: ${{ secrets.EXCHANGE_BARK_SOUND }}
+          EXCHANGE_BARK_URL: ${{ secrets.EXCHANGE_BARK_URL }}
           PUSH_LEVEL: ${{ secrets.PUSH_LEVEL }}
           WEATHER_CITY: ${{ secrets.WEATHER_CITY }}
           CHECKIN_HOURS: ${{ secrets.CHECKIN_HOURS }}
@@ -122,6 +136,15 @@ jobs:
           BARK_TTL: ${{ secrets.BARK_TTL }}
           BARK_VOLUME: ${{ secrets.BARK_VOLUME }}
           # 可选配置
+          RUN_MODE: ${{ github.event.inputs.mode || 'checkin' }}
+          HEARTBEAT_GRACE_MINUTES: ${{ secrets.HEARTBEAT_GRACE_MINUTES }}
+          HEARTBEAT_BARK_LEVEL: ${{ secrets.HEARTBEAT_BARK_LEVEL }}
+          HEARTBEAT_BARK_SOUND: ${{ secrets.HEARTBEAT_BARK_SOUND }}
+          HEARTBEAT_BARK_URL: ${{ secrets.HEARTBEAT_BARK_URL }}
+          EXCHANGE_ALERT_ENABLED: ${{ secrets.EXCHANGE_ALERT_ENABLED }}
+          EXCHANGE_BARK_LEVEL: ${{ secrets.EXCHANGE_BARK_LEVEL }}
+          EXCHANGE_BARK_SOUND: ${{ secrets.EXCHANGE_BARK_SOUND }}
+          EXCHANGE_BARK_URL: ${{ secrets.EXCHANGE_BARK_URL }}
           PUSH_LEVEL: ${{ secrets.PUSH_LEVEL }}
           WEATHER_CITY: ${{ secrets.WEATHER_CITY }}
           CHECKIN_HOURS: ${{ secrets.CHECKIN_HOURS }}

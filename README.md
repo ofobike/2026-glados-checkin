@@ -263,6 +263,12 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | `BARK_CALL_ON_EXPIRE` | ❌ 否 | Cookie 过期时启用 Bark 电话式提醒：`true` / `false`，默认 `false`。         |
 | `BARK_COPY_MODE`     | ❌ 否 | Bark 长按复制内容：`summary` 摘要、`full` 完整报告、`off` 关闭。默认 `summary`。 |
 | `BARK_COPY_LIMIT`    | ❌ 否 | Bark 复制内容最大字符数，默认 `800`。                                      |
+| `HEARTBEAT_GRACE_MINUTES` | ❌ 否 | 签到后多少分钟仍未成功才告警，默认 `12`。                                 |
+| `HEARTBEAT_BARK_LEVEL` | ❌ 否 | 心跳告警 Bark 级别，默认 `timeSensitive`。                                |
+| `HEARTBEAT_BARK_SOUND` | ❌ 否 | 心跳告警铃声，默认 `alarm`。                                              |
+| `EXCHANGE_ALERT_ENABLED` | ❌ 否 | 是否开启积分可兑换提醒，默认 `true`。                                    |
+| `EXCHANGE_BARK_LEVEL` | ❌ 否 | 兑换提醒 Bark 级别，默认 `timeSensitive`。                                |
+| `EXCHANGE_BARK_SOUND` | ❌ 否 | 兑换提醒铃声，默认 `bell`。                                               |
 | `PUSH_LEVEL`         | ❌ 否 | 推送级别：`all` (默认，每次均推送) 或 `fail_only` (仅有账号签到失败时推送) |
 | `WEATHER_CITY`       | ❌ 否 | 天气城市，默认 `杭州`。例如 `北京`、`上海`                                |
 | `CHECKIN_HOURS`      | ❌ 否 | 自定义签到时间，默认 `09:30,21:30`。多个时间用逗号分隔                    |
@@ -699,6 +705,19 @@ else:
 
 3. 到 GitHub 仓库的 **Actions** 页面查看，应该有新的运行记录
 
+#### 第六步：创建心跳监控任务（可选但推荐）
+
+心跳监控用于解决“cron-job.org 或 GitHub Actions 没触发，但你不知道”的问题。它不会重新签到，只检查本地缓存里是否已有本轮成功签到记录。
+
+复制早签到任务，创建两个心跳任务：
+
+| Title | 执行时间 | Raw Body |
+| ----- | -------- | -------- |
+| `GLaDOS 早签到心跳` | **09:45** | `{ "ref": "main", "inputs": { "mode": "heartbeat" } }` |
+| `GLaDOS 晚签到心跳` | **21:45** | `{ "ref": "main", "inputs": { "mode": "heartbeat" } }` |
+
+> 💡 心跳告警默认在签到时间后 `12` 分钟开始生效。你可以通过 Secret `HEARTBEAT_GRACE_MINUTES` 调整，例如设置为 `15`。
+
 ---
 
 ### 🚨 常见陷阱与错误
@@ -753,6 +772,9 @@ export PUSH_LEVEL="all"  # 或 "fail_only"
 
 # 执行签到
 python3 checkin.py
+
+# 可选：只运行心跳监控
+RUN_MODE=heartbeat python3 checkin.py
 ```
 
 ### 第三步：设置定时任务 (Cron)
@@ -1153,6 +1175,12 @@ WEATHER_CITY = "你的城市"  # 例如 "北京"、"上海"、"深圳"
 ---
 
 ## 📝 更新日志
+
+### v1.5.0 (2026-06-07) 💓 Bark 心跳与兑换提醒
+
+- ✅ 新增签到心跳监控：到点后仍未检测到成功签到记录，会通过 Bark 告警
+- ✅ 新增积分可兑换提醒：积分达到兑换档位时单独发送 Bark 通知
+- ✅ GitHub Actions 支持 `mode=checkin/heartbeat`，cron-job.org 可分别触发签到和心跳
 
 ### v1.4.0 (2026-06-07) 📱 Bark 增强版
 
