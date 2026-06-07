@@ -2036,58 +2036,90 @@ APPLE_HTML_TEMPLATE = """<!DOCTYPE html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
 *{{margin:0;padding:0;box-sizing:border-box}}
-body{{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Text','Helvetica Neue',Arial,sans-serif;background:#f5f5f7;padding:16px;color:#1d1d1f;line-height:1.6}}
-.card{{background:#fff;border-radius:16px;padding:20px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,.06)}}
-.card-header{{display:flex;align-items:center;gap:8px;margin-bottom:12px;padding-bottom:12px;border-bottom:1px solid #f0f0f0}}
-.card-header .icon{{font-size:20px}}
+body{{font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display','SF Pro Text','Helvetica Neue','PingFang SC',Arial,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);padding:16px;color:#1d1d1f;line-height:1.6;-webkit-font-smoothing:antialiased}}
+.container{{max-width:480px;margin:0 auto}}
+.header{{background:linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%);border-radius:20px;padding:24px;margin-bottom:16px;color:#fff;text-align:center;position:relative;overflow:hidden}}
+.header::before{{content:'';position:absolute;top:-50%;left:-50%;width:200%;height:200%;background:radial-gradient(circle,rgba(255,255,255,.08) 0%,transparent 60%);animation:pulse 4s ease-in-out infinite}}
+.header .emoji{{font-size:36px;margin-bottom:8px}}
+.header .title{{font-size:20px;font-weight:700;letter-spacing:-.5px;margin-bottom:4px}}
+.header .subtitle{{font-size:13px;color:rgba(255,255,255,.7)}}
+@keyframes pulse{{0%,100%{{opacity:.5}}50%{{opacity:1}}}}
+.card{{background:#fff;border-radius:16px;padding:18px;margin-bottom:12px;box-shadow:0 2px 12px rgba(0,0,0,.08);border:1px solid rgba(0,0,0,.04)}}
+.card-header{{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid #f0f0f0}}
+.card-header .icon{{font-size:22px;width:36px;height:36px;display:flex;align-items:center;justify-content:center;background:#f5f5f7;border-radius:10px}}
 .card-header .title{{font-size:15px;font-weight:600;color:#1d1d1f;letter-spacing:-.2px}}
-.card-header .subtitle{{font-size:12px;color:#86868b;margin-top:2px}}
-.row{{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f5f5f7}}
+.card-header .subtitle{{font-size:12px;color:#86868b;margin-top:1px}}
+.row{{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f8f8f8}}
 .row:last-child{{border-bottom:none}}
-.row .label{{font-size:14px;color:#86868b}}
-.row .value{{font-size:14px;font-weight:500;color:#1d1d1f;text-align:right}}
+.row .label{{font-size:14px;color:#636366;display:flex;align-items:center;gap:6px}}
+.row .value{{font-size:14px;font-weight:600;color:#1d1d1f;text-align:right}}
 .row .value.green{{color:#34c759}}
 .row .value.red{{color:#ff3b30}}
 .row .value.orange{{color:#ff9500}}
 .row .value.blue{{color:#007aff}}
-.progress-bar{{height:6px;background:#f0f0f0;border-radius:3px;overflow:hidden;margin:4px 0}}
-.progress-fill{{height:100%;border-radius:3px;transition:width .3s}}
+.progress-bar{{height:8px;background:#f0f0f0;border-radius:4px;overflow:hidden;margin:6px 0}}
+.progress-fill{{height:100%;border-radius:4px;transition:width .6s ease}}
 .progress-fill.green{{background:linear-gradient(90deg,#34c759,#30d158)}}
 .progress-fill.blue{{background:linear-gradient(90deg,#007aff,#5ac8fa)}}
 .progress-fill.orange{{background:linear-gradient(90deg,#ff9500,#ffcc00)}}
-.badge{{display:inline-block;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:500}}
+.progress-fill.red{{background:linear-gradient(90deg,#ff3b30,#ff6961)}}
+.badge{{display:inline-block;padding:3px 10px;border-radius:8px;font-size:12px;font-weight:500}}
 .badge.green{{background:#e8f9ee;color:#34c759}}
 .badge.red{{background:#fef0f0;color:#ff3b30}}
 .badge.orange{{background:#fff5e6;color:#ff9500}}
 .badge.blue{{background:#e8f2ff;color:#007aff}}
-.badge.gray{{background:#f5f5f7;color:#86868b}}
-.section-title{{font-size:13px;font-weight:600;color:#86868b;text-transform:uppercase;letter-spacing:.5px;margin:16px 0 8px;padding-left:4px}}
+.badge.gray{{background:#f5f5f7;color:#636366}}
+.badge.purple{{background:#f3e8ff;color:#9b59b6}}
 .text-sm{{font-size:13px;color:#86868b}}
-.text-center{{text-align:center}}
+.text-xs{{font-size:11px;color:#aeaeb2}}
 .mt-8{{margin-top:8px}}
 .mt-12{{margin-top:12px}}
 .mb-8{{margin-bottom:8px}}
-.footer{{text-align:center;padding:12px 0;color:#86868b;font-size:12px}}
-.footer .brand{{font-weight:600;color:#1d1d1f}}
+.mb-12{{margin-bottom:12px}}
+.footer{{text-align:center;padding:16px 0;margin-top:8px}}
+.footer .brand{{font-size:14px;font-weight:600;color:#fff;opacity:.9}}
+.footer .text-sm{{font-size:11px;color:rgba(255,255,255,.6);margin-top:4px}}
 .divider{{height:1px;background:#f0f0f0;margin:12px 0}}
-.alert{{padding:12px 16px;border-radius:12px;margin:8px 0;font-size:13px}}
-.alert.warning{{background:#fff5e6;color:#c97b00;border:1px solid #ffe0b2}}
-.alert.danger{{background:#fef0f0;color:#d70015;border:1px solid #ffcdd2}}
-.alert.info{{background:#e8f2ff;color:#007aff;border:1px solid #bbdefb}}
-.alert.success{{background:#e8f9ee;color:#248a3d;border:1px solid #c8e6c9}}
-.quote{{border-left:3px solid #007aff;padding:8px 12px;margin:8px 0;background:#f5f5f7;border-radius:0 8px 8px 0;font-size:13px;color:#515154;font-style:italic}}
-.chip{{display:inline-block;padding:4px 10px;border-radius:20px;font-size:12px;margin:2px;background:#f5f5f7;color:#515154}}
-.heatmap{{font-size:14px;line-height:1.8;letter-spacing:2px}}
-.stat-grid{{display:grid;grid-template-columns:1fr 1fr;gap:8px}}
-.stat-item{{text-align:center;padding:12px 8px;background:#f5f5f7;border-radius:12px}}
-.stat-item .num{{font-size:22px;font-weight:700;color:#1d1d1f}}
-.stat-item .desc{{font-size:11px;color:#86868b;margin-top:2px}}
-.achievement{{display:inline-block;margin:2px;padding:4px 8px;background:#fffbe6;border-radius:8px;font-size:12px}}
+.alert{{padding:12px 16px;border-radius:12px;margin:8px 0;font-size:13px;line-height:1.5}}
+.alert.warning{{background:linear-gradient(135deg,#fff8e1,#fff3cd);color:#c97b00;border:1px solid #ffe0b2}}
+.alert.danger{{background:linear-gradient(135deg,#fef0f0,#fde8e8);color:#d70015;border:1px solid #ffcdd2}}
+.alert.info{{background:linear-gradient(135deg,#e8f4fd,#dbeafe);color:#007aff;border:1px solid #bbdefb}}
+.alert.success{{background:linear-gradient(135deg,#e8f9ee,#d4edda);color:#248a3d;border:1px solid #c8e6c9}}
+.alert.fortune{{background:linear-gradient(135deg,#fff9e6,#fff3cd);color:#b8860b;border:1px solid #ffe082;text-align:center;font-size:14px;padding:14px}}
+.quote{{border-left:3px solid #007aff;padding:10px 14px;margin:8px 0;background:linear-gradient(90deg,#f5f7fa,#fff);border-radius:0 12px 12px 0;font-size:13px;color:#515154;font-style:italic}}
+.chip{{display:inline-block;padding:5px 12px;border-radius:20px;font-size:12px;margin:2px;background:#f5f5f7;color:#515154;font-weight:500}}
+.chip.gold{{background:linear-gradient(135deg,#fff6e0,#ffe8b0);color:#b8860b}}
+.chip.blue{{background:#e8f2ff;color:#007aff}}
+.heatmap{{font-size:15px;line-height:2;letter-spacing:3px}}
+.stat-grid{{display:grid;grid-template-columns:1fr 1fr;gap:10px}}
+.stat-item{{text-align:center;padding:14px 8px;background:linear-gradient(135deg,#f5f7fa,#eef1f5);border-radius:14px}}
+.stat-item .num{{font-size:24px;font-weight:700;color:#1d1d1f}}
+.stat-item .desc{{font-size:11px;color:#86868b;margin-top:4px;font-weight:500}}
+.achievement{{display:inline-block;margin:3px;padding:5px 10px;background:linear-gradient(135deg,#fffbe6,#fff6cc);border-radius:10px;font-size:12px;border:1px solid #ffe58f}}
+.fun-card{{background:linear-gradient(135deg,#fafbff,#f5f0ff);border-radius:16px;padding:16px;margin-bottom:12px;border:1px solid #e8e0f0}}
+.fun-card .fun-title{{font-size:14px;font-weight:600;color:#6b5b95;margin-bottom:8px}}
+.fun-card .fun-text{{font-size:13px;color:#515154;line-height:1.6}}
+.mini-chart{{display:flex;align-items:flex-end;gap:3px;height:40px;padding:4px 0}}
+.mini-chart .bar{{flex:1;border-radius:3px 3px 0 0;transition:height .3s;min-width:8px}}
+.mini-chart .bar.up{{background:linear-gradient(180deg,#34c759,#30d158)}}
+.mini-chart .bar.down{{background:linear-gradient(180deg,#ff3b30,#ff6961)}}
+.mini-chart .bar.neutral{{background:linear-gradient(180deg,#8e8e93,#aeaeb2)}}
+.timeline{{padding-left:16px;border-left:2px solid #e0e0e0}}
+.timeline-item{{padding:6px 0 6px 16px;position:relative;font-size:13px;color:#515154}}
+.timeline-item::before{{content:'';position:absolute;left:-21px;top:12px;width:10px;height:10px;border-radius:50%;background:#007aff;border:2px solid #fff}}
+.timeline-item:first-child::before{{background:#34c759}}
 </style></head><body>
+<div class="container">
+<div class="header">
+<div class="emoji">🎮</div>
+<div class="title">GLaDOS Daily Report</div>
+<div class="subtitle">{time}</div>
+</div>
 {content}
 <div class="footer">
-  <div class="brand">GLaDOS Auto Checkin</div>
-  <div class="text-sm">Powered by GitHub Actions</div>
+<div class="brand">GLaDOS Auto Checkin</div>
+<div class="text-sm">Powered by GitHub Actions · Made with ❤️</div>
+</div>
 </div>
 </body></html>"""
 
@@ -2096,7 +2128,6 @@ def _text_to_apple_html(content):
     lines = content.split('\n')
     html_parts = []
     current_section = None
-    in_progress = False
 
     for line in lines:
         line = line.strip()
@@ -2116,51 +2147,73 @@ def _text_to_apple_html(content):
             continue
 
         # 进度条行
-        progress_match = re.match(r'(█+░*\s*\d+%|▓+░*\s*\d*%?)\s*(.*)', line)
+        progress_match = re.match(r'([█▓]+[░█▓]*\s*\d+%?)\s*(.*)', line)
         if progress_match:
             bar_text = progress_match.group(1)
             label = progress_match.group(2)
             pct_match = re.search(r'(\d+)%', bar_text)
             pct = pct_match.group(1) if pct_match else '50'
-            color = 'green' if int(pct) >= 80 else 'blue' if int(pct) >= 50 else 'orange'
-            html_parts.append(f'<div class="mb-8"><div class="text-sm">{label}</div>')
-            html_parts.append(f'<div class="progress-bar"><div class="progress-fill {color}" style="width:{pct}%"></div></div></div>')
+            pct_int = int(pct)
+            color = 'green' if pct_int >= 80 else 'blue' if pct_int >= 50 else 'orange'
+            html_parts.append(f'<div class="mb-8">')
+            if label:
+                html_parts.append(f'<div class="text-sm" style="margin-bottom:4px">{label}</div>')
+            html_parts.append(f'<div class="progress-bar"><div class="progress-fill {color}" style="width:{pct}%"></div></div>')
+            html_parts.append(f'<div class="text-xs" style="text-align:right;margin-top:2px">{pct}%</div></div>')
             continue
 
         # 键值对行（emoji + label: value）
-        kv_match = re.match(r'^(.{1,2})\s*(.+?):\s*(.+)$', line)
+        kv_match = re.match(r'^(\S{1,2})\s*(.+?):\s*(.+)$', line)
         if kv_match:
             icon = kv_match.group(1)
             label = kv_match.group(2).strip()
             value = kv_match.group(3).strip()
-
-            # 判断值的颜色
             value_class = ''
-            if '✅' in value or '可兑换' in value or '储备充足' in value:
+            if any(k in value for k in ['✅', '可兑换', '储备充足', '达成']):
                 value_class = 'green'
-            elif '❌' in value or '紧急' in value or '过期' in value:
+            elif any(k in value for k in ['❌', '紧急', '过期']):
                 value_class = 'red'
-            elif '⚠️' in value or '即将到期' in value:
+            elif any(k in value for k in ['⚠️', '即将到期']):
                 value_class = 'orange'
-
+            elif any(k in value for k in ['+']):
+                value_class = 'green'
             html_parts.append(f'<div class="row"><span class="label">{icon} {label}</span><span class="value {value_class}">{value}</span></div>')
             continue
 
-        # 纯 emoji 开头的行（成就、等级等）
-        emoji_line = re.match(r'^([\U0001f300-\U0001f9ff☀-⛿✀-➿].+)', line)
-        if emoji_line:
-            text = emoji_line.group(1)
-            # 成就相关
-            if '成就' in text or '等级' in text or '🥇' in text or '🥈' in text or '🥉' in text:
-                html_parts.append(f'<div class="mt-8"><span class="chip">{text}</span></div>')
-            elif '🎊' in text or '✨' in text or '🏆' in text:
-                html_parts.append(f'<div class="alert success">{text}</div>')
-            elif '🚨' in text or '⚠️' in text:
-                html_parts.append(f'<div class="alert danger">{text}</div>')
-            elif '💡' in text or '🏖' in text or '🌅' in text:
-                html_parts.append(f'<div class="alert info">{text}</div>')
-            else:
-                html_parts.append(f'<div class="mt-8">{text}</div>')
+        # 运势/情话/彩虹屁/段子等趣味内容
+        if any(k in line for k in ['💕', '🌈', '😂', '🧩', '📖', '🍚', '🌅']):
+            html_parts.append(f'<div class="fun-card"><div class="fun-text">{line}</div></div>')
+            continue
+
+        # 星座运势标题
+        if '♈' in line and '运势' in line:
+            html_parts.append(f'<div class="fun-card"><div class="fun-title">{line}</div>')
+            continue
+        # 星座运势子项
+        if re.match(r'^\s+(💕|💼|💰|💪|🍀)', line):
+            html_parts.append(f'<div class="fun-text" style="margin:4px 0">{line}</div>')
+            continue
+
+        # 成就/等级/庆祝
+        if any(k in line for k in ['🎊', '✨', '🏆', '🎉', '新成就']):
+            html_parts.append(f'<div class="alert success">{line}</div>')
+            continue
+        if any(k in line for k in ['🚨', '⚠️']) and '到期' in line:
+            html_parts.append(f'<div class="alert danger">{line}</div>')
+            continue
+        if '等级' in line or '成就' in line:
+            html_parts.append(f'<div class="mt-8"><span class="chip gold">{line}</span></div>')
+            continue
+        if '💡' in line or '🏖' in line:
+            html_parts.append(f'<div class="alert info">{line}</div>')
+            continue
+
+        # 倒数日
+        if '📅' in line and '距' in line and '还有' in line:
+            html_parts.append(f'<div class="alert info">{line}</div>')
+            continue
+        if '🎉' in line and '今天是' in line:
+            html_parts.append(f'<div class="alert success">{line}</div>')
             continue
 
         # 普通行
@@ -2186,7 +2239,7 @@ def _text_to_telegram_html(content):
         m = re.match(r'━━━━━━ (.+?) ━━━━━━', line)
         if m:
             section = m.group(1).strip()
-            html_parts.append(f'\n<b>── {section} ──</b>')
+            html_parts.append(f'\n<b>══ {section} ══</b>')
             continue
 
         # 进度条 → code 块
@@ -2195,12 +2248,22 @@ def _text_to_telegram_html(content):
             continue
 
         # 键值对行 → 加粗标签
-        kv_match = re.match(r'^(.{1,2})\s*(.+?):\s*(.+)$', line)
+        kv_match = re.match(r'^(\S{1,2})\s*(.+?):\s*(.+)$', line)
         if kv_match:
             icon = kv_match.group(1)
             label = kv_match.group(2).strip()
             value = kv_match.group(3).strip()
-            html_parts.append(f'{icon} <b>{label}:</b> {value}')
+            html_parts.append(f'{icon} <b>{label}:</b>  <i>{value}</i>')
+            continue
+
+        # 运势/情话/彩虹屁/段子
+        if any(k in line for k in ['💕', '🌈', '😂', '🧩', '📖', '🍚', '🌅']):
+            html_parts.append(f'<blockquote>{line}</blockquote>')
+            continue
+
+        # 星座运势子项
+        if re.match(r'^\s+(💕|💼|💰|💪|🍀)', line):
+            html_parts.append(f'  <i>{line.strip()}</i>')
             continue
 
         # 成就/庆祝行
@@ -2211,6 +2274,16 @@ def _text_to_telegram_html(content):
         # 告警行
         if any(k in line for k in ['🚨', '⚠️']):
             html_parts.append(f'<b>❗ {line}</b>')
+            continue
+
+        # 倒数日
+        if '📅' in line and '距' in line:
+            html_parts.append(f'<i>{line}</i>')
+            continue
+
+        # 等级/成就
+        if '等级' in line or '成就' in line:
+            html_parts.append(f'<b>{line}</b>')
             continue
 
         # 普通行
@@ -2225,7 +2298,8 @@ def pushplus_push(token, title, content):
         url = "https://www.pushplus.plus/send"
         # 转换为 Apple 风格 HTML
         body_html = _text_to_apple_html(content)
-        full_html = APPLE_HTML_TEMPLATE.format(content=body_html)
+        current_time = now_bjt().strftime('%Y-%m-%d %H:%M')
+        full_html = APPLE_HTML_TEMPLATE.format(content=body_html, time=current_time)
         data = {
             "token": token,
             "title": title,
@@ -2251,14 +2325,15 @@ def serverchan(send_key, title, content):
     if not send_key: return False
     try:
         url = f"https://sctapi.ftqq.com/{send_key}.send"
-        # 转换为 Markdown 格式
         md = content
-        # 分隔线 → Markdown 粗体
-        md = re.sub(r'━━━━━━ (.+?) ━━━━━━', r'**\1**', md)
-        # 键值对行 → 加粗标签
-        md = re.sub(r'^(.{1,2})\s*(.+?):\s*(.+)$', r'**\1 \2:** \3', md, flags=re.MULTILINE)
+        # 分隔线 → 粗体标题 + 分割线
+        md = re.sub(r'━━━━━━ (.+?) ━━━━━━', r'**\1**\n---', md)
+        # 键值对行 → 粗体标签
+        md = re.sub(r'^(\S{1,2})\s*(.+?):\s*(.+)$', r'**\1 \2:** \3', md, flags=re.MULTILINE)
         # 进度条 → 代码块
         md = re.sub(r'^([█░▓]+.+)$', r'```\n\1\n```', md, flags=re.MULTILINE)
+        # 趣味内容 → 引用
+        md = re.sub(r'^([💕🌈😂🧩📖🍚🌅].+)$', r'> \1', md, flags=re.MULTILINE)
         resp = requests.post(url, data={'title': title, 'desp': md}, timeout=10)
         if resp.status_code == 200:
             log("✅ Server酱推送成功")
@@ -2274,14 +2349,15 @@ def dingtalk(token, title, content):
     if not token: return False
     try:
         url = f"https://oapi.dingtalk.com/robot/send?access_token={token}"
-        # 钉钉 Markdown 支持有限，只保留粗体和换行
         md = content
         # 分隔线 → 粗体标题
         md = re.sub(r'━━━━━━ (.+?) ━━━━━━', r'**\1**', md)
         # 键值对 → 粗体标签
-        md = re.sub(r'^(.{1,2})\s*(.+?):\s*(.+)$', r'**\1 \2:** \3', md, flags=re.MULTILINE)
-        # 去掉进度条中的特殊字符（钉钉不支持等宽显示）
+        md = re.sub(r'^(\S{1,2})\s*(.+?):\s*(.+)$', r'**\1 \2:** \3', md, flags=re.MULTILINE)
+        # 进度条特殊字符替换
         md = re.sub(r'[█░▓]+[^\n]*', lambda m: m.group(0).replace('█', '■').replace('░', '□').replace('▓', '▣'), md)
+        # 趣味内容 → 引用
+        md = re.sub(r'^([💕🌈😂🧩📖🍚🌅].+)$', r'> \1', md, flags=re.MULTILINE)
         msg = f"## {title}\n\n{md}"
         data = {"msgtype": "markdown", "markdown": {"title": title, "text": msg}}
         resp = requests.post(url, json=data, timeout=10)
