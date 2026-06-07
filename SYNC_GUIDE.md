@@ -5,6 +5,12 @@
 - ✅ Server酱（微信公众号推送）
 - ✅ 钉钉机器人推送
 - ✅ cron-job.org 定时触发（移除了 GitHub Actions 自带 schedule）
+- ✅ 签到热力图（近30天签到日历）
+- ✅ 本月签到统计（签到率进度条）
+- ✅ 积分变化明细（最近5条记录）
+- ✅ 历史最高积分
+- ✅ 会员续期倒计时预警
+- ✅ 本次签到获得积分
 
 本文档说明如何安全地同步上游更新，同时保留自定义代码。
 
@@ -89,9 +95,10 @@ git rebase upstream/main
 
 | 文件 | 处理方式 |
 |------|----------|
-| `checkin.py` | 保留你的自定义代码（Server酱、钉钉），同时接受上游的核心签到逻辑更新 |
+| `checkin.py` | 保留你的自定义代码（Server酱、钉钉、热力图、统计等），同时接受上游的核心签到逻辑更新 |
 | `.github/workflows/checkin.yml` | 保留你的配置（无 schedule + SEND_KEY + DINGTALK_TOKEN） |
 | `README.md` | 接受上游更新，或保留你的版本 |
+| `SYNC_GUIDE.md` | 保留你的版本（此文件为自定义） |
 | 其他文件 | 通常直接接受上游更新 |
 
 ### 解决步骤
@@ -174,8 +181,15 @@ git push origin main --force
 |------|------|
 | `serverchan()` 函数 | Server酱推送逻辑 |
 | `dingtalk()` 函数 | 钉钉推送逻辑 |
+| `record_checkin_date()` 函数 | 签到日期记录 |
+| `format_heatmap()` 函数 | 签到热力图 |
+| `format_monthly_stats()` 函数 | 本月签到统计 |
+| `get_max_points()` 函数 | 历史最高积分 |
+| `format_renewal_alert()` 函数 | 会员续期预警 |
+| `format_points_history_detail()` 函数 | 积分变化明细 |
 | 环境变量读取 | `SEND_KEY`、`DINGTALK_TOKEN` |
 | 推送触发逻辑 | `if sc_key:` 和 `if ding_token:` |
+| GLaDOS.checkin() | 本次签到积分解析 |
 
 ### checkin.yml
 

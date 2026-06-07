@@ -8,6 +8,8 @@
 - 精准获取当前积分 (Points)
 - Server酱/钉钉/Telegram 多渠道推送
 - 积分趋势、连续签到、价值估算
+- 签到热力图、本月统计、积分变化明细
+- 会员到期预警、本次签到积分
 - 天气预报、每日一句
 - Cookie 过期自动告警
 - 智能多域名切换 (优先 glados.cloud)
@@ -102,10 +104,14 @@ def load_data():
     """加载历史数据"""
     if DATA_FILE.exists():
         try:
-            return json.loads(DATA_FILE.read_text(encoding='utf-8'))
+            d = json.loads(DATA_FILE.read_text(encoding='utf-8'))
+            # 兼容旧数据格式
+            if "checkin_dates" not in d:
+                d["checkin_dates"] = {}
+            return d
         except:
             pass
-    return {"points_history": {}, "checkin_streak": {}}
+    return {"points_history": {}, "checkin_streak": {}, "checkin_dates": {}}
 
 def save_data(data):
     """保存历史数据"""
@@ -263,6 +269,125 @@ def get_next_checkin():
     else:
         return "⏰ 下次签到: 明天 09:30"
 
+# ================= 签到热力图 =================
+
+def record_checkin_date(data, email):
+    """记录今日签到"""
+    today = now_bjt().strftime('%Y-%m-%d')
+    if email not in data["checkin_dates"]:
+        data["checkin_dates"][email] = []
+    dates = data["checkin_dates"][email]
+    if today not in dates:
+        dates.append(today)
+    # 只保留最近60天
+    data["checkin_dates"][email] = dates[-60:]
+
+def format_heatmap(data, email):
+    """生成近30天签到热力图（ASCII）"""
+    dates_set = set(data.get("checkin_dates", {}).get(email, []))
+    if not dates_set:
+        return "🗓 签到日历: 数据积累中"
+
+    today = now_bjt().date()
+    # 最近30天
+    days = []
+    for i in range(29, -1, -1):
+        d = today - timedelta(days=i)
+        days.append(d)
+
+    # 按周排列（周一开始）
+    # 找到30天前的周一
+    first_day = days[0]
+    start_monday = first_day - timedelta(days=first_day.weekday())
+
+    # 构建日历网格
+    week_labels = ["一", "二", "三", "四", "五", "六", "日"]
+    grid = {}  # (week, weekday) -> date
+
+    current = start_monday
+    week_num = 0
+    while current <= today:
+        wd = current.weekday()
+        grid[(week_num, wd)] = current
+        if wd == 6:  # 周日，换下一周
+            week_num += 1
+        current += timedelta(days=1)
+
+    total_weeks = week_num + 1
+
+    # 绘制热力图
+    lines = ["🗓 近30天签到日历:"]
+    lines.append("    " + "  ".join(week_labels))
+
+    for w in range(total_weeks):
+        row = ""
+        for wd in range(7):
+            d = grid.get((w, wd))
+            if d is None:
+                row += "  "
+            elif d > today:
+                row += "  "
+            elif d.strftime('%Y-%m-%d') in dates_set:
+                row += "🟢"
+            else:
+                row += "⚫"
+            if wd < 6:
+                row += " "
+        # 显示该周的月份（如果是该月第一周）
+        lines.append(row)
+
+    # 统计
+    checked = sum(1 for d in dates_set if (today - timedelta(days=29)) <= datetime.strptime(d, '%Y-%m-%d').date() <= today)
+    lines.append(f"近30天签到: {checked}/30 天 ({checked*100//30}%)")
+    return "\n".join(lines)
+
+# ================= 本月签到统计 =================
+
+def format_monthly_stats(data, email):
+    """本月签到统计"""
+    dates_list = data.get("checkin_dates", {}).get(email, [])
+    if not dates_list:
+        return "📅 本月签到: 数据积累中"
+
+    today = now_bjt().date()
+    month_start = today.replace(day=1)
+    month_prefix = today.strftime('%Y-%m')
+
+    month_dates = [d for d in dates_list if d.startswith(month_prefix)]
+    month_days = (today - month_start).days + 1
+    checked = len(month_dates)
+    rate = checked * 100 // month_days if month_days > 0 else 0
+
+    # 签到率条形图
+    bar_width = 10
+    filled = round(rate / 100 * bar_width)
+    bar = "▓" * filled + "░" * (bar_width - filled)
+
+    return f"📅 本月签到: {checked}/{month_days} 天 [{bar}] {rate}%"
+
+# ================= 历史最高积分 =================
+
+def get_max_points(data, email):
+    """获取历史最高积分"""
+    history = data.get("points_history", {}).get(email, [])
+    if not history:
+        return None
+    return max(r["points"] for r in history)
+
+# ================= 会员续期预警 =================
+
+def format_renewal_alert(days):
+    """会员续期倒计时预警"""
+    if not isinstance(days, int):
+        return ""
+    if days <= 3:
+        return f"🚨 紧急！仅剩 {days} 天到期，请立即续期！\n   👉 打开 https://glados.cloud → Console → Renew"
+    elif days <= 7:
+        return f"⚠️ 警告！{days} 天后到期，建议尽快续期\n   👉 打开 https://glados.cloud → Console → Renew"
+    elif days <= 14:
+        return f"💡 提醒：{days} 天后到期，可提前规划续期"
+    return ""
+
 # ================= 天气 =================
 
 WEATHER_CITY = "杭州"
@@ -351,6 +476,9 @@ class GLaDOS:
         self.exchange_info = ""
         self.plan = "?"
         self.plans_list = []  # 存储兑换计划列表
+        self.checkin_result = None  # 签到原始响应
+        self.earned_points = None  # 本次签到获得积分
+        self.points_history_detail = []  # 积分变化明细
         
     def req(self, method, path, data=None):
         """带自动域名切换的请求"""
@@ -391,16 +519,19 @@ class GLaDOS:
         if res and 'points' in res:
             # 当前积分
             self.points = str(res.get('points', '0')).split('.')[0]
-            
+
+            # 积分变化历史（存储用于展示明细）
+            self.points_history_detail = res.get('history', [])
+
             # 最近一次积分变化
-            history = res.get('history', [])
+            history = self.points_history_detail
             if history:
                 last = history[0]
                 change = str(last.get('change', '0')).split('.')[0]
                 if not change.startswith('-'):
                     change = '+' + change
                 self.points_change = change
-            
+
             # 兑换计划
             plans = res.get('plans', {})
             pts = int(self.points)
@@ -422,7 +553,18 @@ class GLaDOS:
 
     def checkin(self):
         """执行签到"""
-        return self.req('POST', '/api/user/checkin', {'token': 'glados.cloud'})
+        res = self.req('POST', '/api/user/checkin', {'token': 'glados.cloud'})
+        self.checkin_result = res
+        # 尝试从响应中提取本次获得积分
+        if res:
+            for key in ['points', 'earned', 'new_points', 'add_points']:
+                if key in res:
+                    try:
+                        self.earned_points = int(float(str(res[key])))
+                    except:
+                        pass
+                    break
+        return res
 
 # ================= 主程序 =================
 
@@ -476,7 +618,7 @@ def telegram_push(token, chat_id, title, content):
         # 将分隔线加粗
         text = re.sub(r'(━━━━━━ .+? ━━━━━━)', r'<b>\1</b>', text)
         # 将 emoji + 标签行加粗
-        text = re.sub(r'^(👤|💰|⏳|📅|📅|🔥|⭐|💰|📈|📉|➡️|📊|🎯|⏰|🕒)(.+)$', r'<b>\1\2</b>', text, flags=re.MULTILINE)
+        text = re.sub(r'^(👤|💰|⏳|📅|🎁|🏅|🚨|⚠️|💡|🔥|⭐|📈|📉|➡️|📊|🎯|⏰|🕒|🗓|📅)(.+)$', r'<b>\1\2</b>', text, flags=re.MULTILINE)
         msg = f"<b>{title}</b>\n\n{text}"
         data = {
             "chat_id": chat_id,
@@ -536,6 +678,11 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak):
     # 签到结果
     checkin_icon = "✅" if checkin_ok else "❌"
 
+    # 本次签到获得积分
+    earned_text = ""
+    if g.earned_points is not None and g.earned_points > 0:
+        earned_text = f"🎁 本次获得: +{g.earned_points} 积分"
+
     # 构建进度条
     progress_lines = []
     for p in g.plans_list:
@@ -563,8 +710,24 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak):
         pts = 0
     value_text = calc_value(pts)
 
+    # 历史最高积分
+    max_pts = get_max_points(data, g.email)
+    max_pts_text = f"🏅 历史最高: {max_pts} 积分" if max_pts else ""
+
     # 智能推荐
     recommendation = get_recommendation(data, g.email, pts, g.plans_list)
+
+    # 会员续期预警
+    renewal_alert = format_renewal_alert(days) if isinstance(days, int) else ""
+
+    # 本月签到统计
+    monthly_stats = format_monthly_stats(data, g.email)
+
+    # 签到热力图
+    heatmap = format_heatmap(data, g.email)
+
+    # 积分变化明细
+    history_detail = format_points_history_detail(g)
 
     # 下次签到时间
     next_checkin = get_next_checkin()
@@ -582,25 +745,89 @@ def format_dingtalk_message(g, msg, checkin_ok, data, streak):
         "",
         f"💰 当前积分: {g.points} ({g.points_change})",
         f"⏳ 可用天数: {days} 天  {day_status}",
-        f"📅 断粮日期: {expire_date}",
-        f"{checkin_icon} 签到结果: {msg}",
-        f"{streak_text}",
-        f"{value_text}",
-        "",
-        "━━━━━━ 🎁 资产增值路径 ━━━━━━",
-        "",
-        progress_text,
+        f"📅 到期日期: {expire_date}",
     ]
+
+    # 本次签到积分
+    if earned_text:
+        lines.append(earned_text)
+
+    lines.append(f"{checkin_icon} 签到结果: {msg}")
+    lines.append(f"{streak_text}")
+    lines.append(f"{value_text}")
+
+    if max_pts_text:
+        lines.append(max_pts_text)
+
+    # 续期预警（高优先级，放在核心报告内）
+    if renewal_alert:
+        lines.append("")
+        lines.append(renewal_alert)
+
+    lines.append("")
+    lines.append("━━━━━━ 🎁 资产增值路径 ━━━━━━")
+    lines.append("")
+    lines.append(progress_text)
 
     if recommendation:
         lines.append("")
         lines.append(recommendation)
+
+    # 本月签到统计
+    lines.append("")
+    lines.append(f"{monthly_stats}")
+
+    # 签到热力图
+    lines.append("")
+    lines.append(heatmap)
+
+    # 积分变化明细
+    if history_detail:
+        lines.append("")
+        lines.append(history_detail)
 
     lines.append("")
     lines.append(f"{trend}")
     lines.append("")
     lines.append(f"{next_checkin}")
     lines.append(f"🕒 更新于: {now}")
+
+    return "\n".join(lines)
+
+
+def format_points_history_detail(g):
+    """格式化积分变化明细（最近5条）"""
+    history = getattr(g, 'points_history_detail', [])
+    if not history:
+        return ""
+
+    lines = ["━━━━━━ 📝 积分变化明细 ━━━━━━"]
+    for record in history[:5]:
+        change = record.get('change', 0)
+        reason = record.get('reason', record.get('type', ''))
+        time_str = record.get('time', record.get('date', ''))
+
+        # 格式化变化量
+        try:
+            change_val = int(float(str(change)))
+            change_str = f"+{change_val}" if change_val > 0 else str(change_val)
+        except:
+            change_str = str(change)
+
+        # 格式化时间
+        if 'T' in str(time_str):
+            try:
+                dt = datetime.fromisoformat(str(time_str).replace('Z', '+00:00'))
+                time_str = dt.strftime('%m-%d %H:%M')
+            except:
+                pass
+
+        # 简化原因
+        if not reason:
+            reason = "签到"
+        reason = str(reason)[:20]
+
+        lines.append(f"  {change_str:>5} | {reason} | {time_str}")
 
     return "\n".join(lines)
 
@@ -664,7 +891,9 @@ def main():
         checkin_ok = "Checkin" in msg
         log(f"用户: {g.email} | 积分: {g.points} | 天数: {g.left_days} | 结果: {msg}")
 
-        if checkin_ok: success_cnt += 1
+        if checkin_ok:
+            success_cnt += 1
+            record_checkin_date(data, g.email)  # 记录签到日期
 
         # 4. 记录数据（积分趋势 + 连续签到）
         try:
