@@ -257,7 +257,19 @@ def bark_push(key, title, content, accounts=None, success_cnt=None, total_cnt=No
     return _send_bark_payload(key, data)
 
 
-def bark_event_push(key, title, body, level="active", sound="birdsong", group_suffix="提醒", url=None, copy_text=None):
+def bark_event_push(
+    key,
+    title,
+    body,
+    level="active",
+    sound="birdsong",
+    group_suffix="提醒",
+    url=None,
+    copy_text=None,
+    body_limit=None,
+    copy_limit=None,
+    default_url="https://glados.cloud/console/checkin",
+):
     """Send an independent event notification, such as heartbeat or exchange alerts."""
     if not key:
         log("⚠️ Bark: 未配置 BARK_KEY，跳过事件推送")
@@ -267,14 +279,20 @@ def bark_event_push(key, title, body, level="active", sound="birdsong", group_su
     if group_suffix:
         group = f"{group}/{group_suffix}"
 
+    if body_limit is None:
+        body_limit = env_int("BARK_EVENT_BODY_LIMIT", 480) or 480
+    if copy_limit is None:
+        copy_limit = env_int("BARK_COPY_LIMIT", 800) or 800
+    target_url = default_url if url is None else url
+
     data = {
         "title": title,
-        "body": shorten(body, env_int("BARK_EVENT_BODY_LIMIT", 480) or 480),
+        "body": shorten(body, body_limit),
         "group": group,
         "sound": sound,
         "level": level,
-        "url": url or "https://glados.cloud/console/checkin",
-        "copy": shorten(copy_text or body, env_int("BARK_COPY_LIMIT", 800) or 800),
+        "url": target_url,
+        "copy": shorten(copy_text or body, copy_limit),
     }
     if env_flag("BARK_ARCHIVE", True):
         data["isArchive"] = "1"

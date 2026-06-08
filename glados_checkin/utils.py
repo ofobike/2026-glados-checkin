@@ -1,6 +1,11 @@
 """Shared utility helpers."""
 
+import sys
 from datetime import datetime, timedelta, timezone
+
+
+if sys.platform.startswith('win'):
+    sys.stdout.reconfigure(encoding='utf-8')
 
 
 BJT = timezone(timedelta(hours=8))  # Beijing time, UTC+8

@@ -35,10 +35,6 @@ from glados_checkin.notifiers import dingtalk, pushplus_push, serverchan, telegr
 from glados_checkin.paths import DATA_FILE, EXPORT_FILE
 from glados_checkin.utils import BJT, log, mask_email, now_bjt
 
-# Fix Windows Unicode Output
-if sys.platform.startswith('win'):
-    sys.stdout.reconfigure(encoding='utf-8')
-
 # ================= 配置 =================
 
 # 域名优先级：Cloud 第一

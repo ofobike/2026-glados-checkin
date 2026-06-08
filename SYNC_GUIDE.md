@@ -303,7 +303,7 @@ git push origin main --force
 | `BARK_CALL_ON_EXPIRE` / `BARK_AUTO_COPY` / `BARK_ARCHIVE` | `false` / `false` / `true` | Bark 电话式提醒、自动复制和归档 |
 | `BARK_COPY_MODE` / `BARK_COPY_LIMIT` | `summary` / `800` | Bark 长按复制内容，默认限制大小以避免 413 |
 | `BARK_TTL` / `BARK_VOLUME` | 无 | Bark 保留时间和 critical 音量 |
-| `RUN_MODE` | `checkin` | 运行模式，`heartbeat` 只检查心跳 |
+| `RUN_MODE` | `checkin` | 运行模式：`checkin` 签到、`heartbeat` 心跳、`morning` Bark 每日早报 |
 | `HEARTBEAT_GRACE_MINUTES` | `12` | 签到后多少分钟未成功才告警 |
 | `HEARTBEAT_BARK_LEVEL` / `HEARTBEAT_BARK_SOUND` / `HEARTBEAT_BARK_URL` | `timeSensitive` / `alarm` / Actions 页 | 心跳 Bark 告警 |
 | `EXCHANGE_ALERT_ENABLED` | `true` | 积分可兑换提醒开关 |
@@ -331,6 +331,7 @@ git push origin main --force
 > - `GLaDOS` 类的 `checkin()`、`get_status()`、`get_points()` → 接受上游更新
 > - `glados_checkin/app.py` 的 `main()` 函数 → 保留你的推送逻辑，只更新签到流程
 > - `glados_checkin/bark.py`、`glados_checkin/notifiers.py`、`glados_checkin/renderers.py` → 全部保留
+> - `glados_checkin/morning.py` Bark 独立早报 → 全部保留
 > - `glados_checkin/config.py` 环境变量读取 → 全部保留
 
 ---

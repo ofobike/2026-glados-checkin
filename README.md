@@ -778,6 +778,9 @@ python3 -m glados_checkin
 
 # 可选：只运行心跳监控
 RUN_MODE=heartbeat python3 checkin.py
+
+# 可选：只发送 Bark 每日早报（不需要 GLADOS_COOKIE）
+RUN_MODE=morning python3 checkin.py
 ```
 
 ### 第三步：设置定时任务 (Cron)
@@ -793,6 +796,32 @@ RUN_MODE=heartbeat python3 checkin.py
 ```
 
 > 💡 **提示**：如果配置了多个环境变量，建议写一个 shell 脚本来管理，避免 crontab 行过长。
+
+---
+
+## 🌅 Bark 独立每日早报
+
+每日早报是独立 Bark 通知任务，不依赖 GLaDOS Cookie。只需要配置 `BARK_KEY`，然后用 `RUN_MODE=morning` 运行。
+
+推荐在 cron-job.org 里触发 GitHub Actions 时传：
+
+```json
+{"ref":"main","inputs":{"mode":"morning"}}
+```
+
+可选配置：
+
+| 变量 | 说明 |
+|------|------|
+| `MORNING_TITLE` | 早报标题，默认 `每日早报` |
+| `MORNING_TODOS` / `DAILY_TODOS` | 今日待办，支持换行或分号分隔 |
+| `MORNING_REMINDER` / `DAILY_REMINDER` | 每日提醒 |
+| `MORNING_BARK_LEVEL` | Bark 级别，默认 `active` |
+| `MORNING_BARK_SOUND` | Bark 声音，默认 `birdsong` |
+| `MORNING_BARK_URL` | 点击通知打开的 URL，可填网页或 Shortcuts URL |
+| `MORNING_GROUP_SUFFIX` | Bark 分组后缀，默认 `早报` |
+| `MORNING_BARK_BODY_LIMIT` | 锁屏正文长度，默认 `1200` |
+| `MORNING_BARK_COPY_LIMIT` | 复制内容长度，默认 `1200` |
 
 ---
 
@@ -1156,6 +1185,7 @@ cookie1&cookie2&cookie3
 | `checkin.py`            | 兼容入口，仍支持 `python checkin.py`        |
 | `glados_checkin/app.py` | 核心业务流程（签到、统计、心跳、兑换提醒）  |
 | `glados_checkin/cli.py` | 命令行入口和 `RUN_MODE` 分发                |
+| `glados_checkin/morning.py` | Bark 独立每日早报                       |
 | `glados_checkin/bark.py` | Bark 推送 payload、分级、角标、跳转、复制 |
 | `glados_checkin/notifiers.py` | PushPlus / Server酱 / 钉钉 / Telegram 发送 |
 | `glados_checkin/renderers.py` | PushPlus / Telegram 消息渲染模块    |

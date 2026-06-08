@@ -90,6 +90,17 @@ jobs:
           MOOD_NOTE: ${{ secrets.MOOD_NOTE }}
           ZODIAC_SIGN: ${{ secrets.ZODIAC_SIGN }}
           COUNTDOWN_EVENTS: ${{ secrets.COUNTDOWN_EVENTS }}
+          MORNING_TITLE: ${{ secrets.MORNING_TITLE }}
+          MORNING_TODOS: ${{ secrets.MORNING_TODOS }}
+          DAILY_TODOS: ${{ secrets.DAILY_TODOS }}
+          MORNING_REMINDER: ${{ secrets.MORNING_REMINDER }}
+          DAILY_REMINDER: ${{ secrets.DAILY_REMINDER }}
+          MORNING_BARK_LEVEL: ${{ secrets.MORNING_BARK_LEVEL }}
+          MORNING_BARK_SOUND: ${{ secrets.MORNING_BARK_SOUND }}
+          MORNING_BARK_URL: ${{ secrets.MORNING_BARK_URL }}
+          MORNING_GROUP_SUFFIX: ${{ secrets.MORNING_GROUP_SUFFIX }}
+          MORNING_BARK_BODY_LIMIT: ${{ secrets.MORNING_BARK_BODY_LIMIT }}
+          MORNING_BARK_COPY_LIMIT: ${{ secrets.MORNING_BARK_COPY_LIMIT }}
 
       - name: Retry on Failure
         if: failure()
@@ -152,3 +163,14 @@ jobs:
           MOOD_NOTE: ${{ secrets.MOOD_NOTE }}
           ZODIAC_SIGN: ${{ secrets.ZODIAC_SIGN }}
           COUNTDOWN_EVENTS: ${{ secrets.COUNTDOWN_EVENTS }}
+          MORNING_TITLE: ${{ secrets.MORNING_TITLE }}
+          MORNING_TODOS: ${{ secrets.MORNING_TODOS }}
+          DAILY_TODOS: ${{ secrets.DAILY_TODOS }}
+          MORNING_REMINDER: ${{ secrets.MORNING_REMINDER }}
+          DAILY_REMINDER: ${{ secrets.DAILY_REMINDER }}
+          MORNING_BARK_LEVEL: ${{ secrets.MORNING_BARK_LEVEL }}
+          MORNING_BARK_SOUND: ${{ secrets.MORNING_BARK_SOUND }}
+          MORNING_BARK_URL: ${{ secrets.MORNING_BARK_URL }}
+          MORNING_GROUP_SUFFIX: ${{ secrets.MORNING_GROUP_SUFFIX }}
+          MORNING_BARK_BODY_LIMIT: ${{ secrets.MORNING_BARK_BODY_LIMIT }}
+          MORNING_BARK_COPY_LIMIT: ${{ secrets.MORNING_BARK_COPY_LIMIT }}
