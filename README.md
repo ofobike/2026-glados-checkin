@@ -770,8 +770,11 @@ export BARK_BADGE_MODE="days"
 # 可选：推送级别
 export PUSH_LEVEL="all"  # 或 "fail_only"
 
-# 执行签到
+# 执行签到（兼容入口）
 python3 checkin.py
+
+# 也可以使用标准 Python 包入口
+python3 -m glados_checkin
 
 # 可选：只运行心跳监控
 RUN_MODE=heartbeat python3 checkin.py
@@ -1114,11 +1117,7 @@ cookie1&cookie2&cookie3
 <details>
 <summary><b>Q: 天气显示的城市不对，怎么改？</b></summary>
 
-默认天气城市为杭州。如需修改，编辑 `checkin.py` 中的 `WEATHER_CITY` 变量即可：
-
-```python
-WEATHER_CITY = "你的城市"  # 例如 "北京"、"上海"、"深圳"
-```
+默认天气城市为杭州。如需修改，在环境变量中配置 `WEATHER_CITY`，例如 `WEATHER_CITY=北京`。
 
 </details>
 
@@ -1154,7 +1153,16 @@ WEATHER_CITY = "你的城市"  # 例如 "北京"、"上海"、"深圳"
 
 | 文件                    | 说明                                        |
 | ----------------------- | ------------------------------------------- |
-| `checkin.py`            | 核心签到脚本（签到、数据统计、多渠道推送）  |
+| `checkin.py`            | 兼容入口，仍支持 `python checkin.py`        |
+| `glados_checkin/app.py` | 核心业务流程（签到、统计、心跳、兑换提醒）  |
+| `glados_checkin/cli.py` | 命令行入口和 `RUN_MODE` 分发                |
+| `glados_checkin/bark.py` | Bark 推送 payload、分级、角标、跳转、复制 |
+| `glados_checkin/notifiers.py` | PushPlus / Server酱 / 钉钉 / Telegram 发送 |
+| `glados_checkin/renderers.py` | PushPlus / Telegram 消息渲染模块    |
+| `glados_checkin/config.py` | 环境变量读取工具                         |
+| `glados_checkin/paths.py` | 数据文件、导出文件路径                    |
+| `glados_checkin/utils.py` | 日志、北京时间、邮箱脱敏等通用工具        |
+| `pyproject.toml`        | 标准 Python 项目元数据和命令入口            |
 | `.github/workflows/checkin.yml` | GitHub Actions 工作流配置          |
 | `requirements.txt`      | Python 依赖（仅 requests）                  |
 | `flake.nix`             | Nix Flake 配置                              |

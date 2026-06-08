@@ -1,1 +1,5 @@
 glados_data.json
+glados_checkin_log.csv
+__pycache__/
+*.py[cod]
+.pytest_cache/

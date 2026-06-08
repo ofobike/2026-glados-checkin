@@ -91,7 +91,7 @@ git log --oneline main..upstream/main
 git diff main upstream/main
 ```
 
-重点关注 `checkin.py` 的变化，因为我们的自定义代码也在这个文件里。
+重点关注 `checkin.py` 和 `glados_checkin/` 包的变化。现在 `checkin.py` 只是兼容入口，主要自定义代码已拆到包内模块。
 
 ---
 
@@ -129,7 +129,8 @@ git rebase upstream/main
 
 | 文件 | 处理方式 |
 |------|----------|
-| `checkin.py` | 保留你的自定义代码（Server酱、钉钉、热力图、统计等），同时接受上游的核心签到逻辑更新 |
+| `checkin.py` | 保留兼容入口，通常只需要继续调用 `glados_checkin.cli.run()` |
+| `glados_checkin/` | 保留你的自定义代码（推送、热力图、统计、Bark、心跳、兑换提醒等），同时谨慎接受上游核心签到逻辑更新 |
 | `.github/workflows/checkin.yml` | 保留你的配置（无 schedule + SEND_KEY + DINGTALK_TOKEN） |
 | `README.md` | 接受上游更新，或保留你的版本 |
 | `SYNC_GUIDE.md` | 保留你的版本（此文件为自定义） |
@@ -209,21 +210,15 @@ git push origin main --force
 
 以下是你添加的自定义代码，在合并冲突时需要特别注意保留：
 
-### checkin.py — 推送渠道
+### glados_checkin — 推送渠道
 
 | 位置 | 内容 |
 |------|------|
-| `pushplus_push()` 函数 | PushPlus 推送（Apple 风格 HTML） |
-| `serverchan()` 函数 | Server酱推送（Markdown） |
-| `dingtalk()` 函数 | 钉钉推送（Markdown） |
-| `telegram_push()` 函数 | Telegram 推送（HTML） |
-| `bark_push()` 函数 | Bark 增强推送（iOS 原生推送） |
-| `_bark_*()` / `extract_bark_summary()` 函数 | Bark 摘要、分级、角标、跳转、复制、多设备等增强逻辑 |
-| `APPLE_HTML_TEMPLATE` 常量 | PushPlus Apple 风格 HTML/CSS 模板 |
-| `_text_to_apple_html()` 函数 | 纯文本→Apple HTML 转换 |
-| `_text_to_telegram_html()` 函数 | 纯文本→Telegram HTML 转换 |
+| `glados_checkin/notifiers.py` | PushPlus / Server酱 / 钉钉 / Telegram 推送 |
+| `glados_checkin/bark.py` | Bark 摘要、分级、角标、跳转、复制、多设备、事件推送 |
+| `glados_checkin/renderers.py` | PushPlus Apple HTML 模板、纯文本→PushPlus/Telegram HTML 转换 |
 
-### checkin.py — 数据统计
+### glados_checkin/app.py — 数据统计
 
 | 位置 | 内容 |
 |------|------|
@@ -252,7 +247,7 @@ git push origin main --force
 | `cleanup_old_data()` 函数 | 自动清理旧数据（10天） |
 | `validate_cookie()` 函数 | Cookie 格式检测 |
 
-### checkin.py — 生活资讯
+### glados_checkin/app.py — 生活资讯
 
 | 位置 | 内容 |
 |------|------|
@@ -271,7 +266,7 @@ git push origin main --force
 | `get_countdown()` 函数 | 自定义倒数日 |
 | `_load_countdown_events()` 函数 | 倒数日配置加载 |
 
-### checkin.py — 趣味内容
+### glados_checkin/app.py — 趣味内容
 
 | 位置 | 内容 |
 |------|------|
@@ -290,7 +285,7 @@ git push origin main --force
 | `get_mini_game()` 函数 | 签到小游戏 |
 | `get_mood_note()` 函数 | 签到日记 |
 
-### checkin.py — 环境变量
+### glados_checkin — 环境变量
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
@@ -334,10 +329,9 @@ git push origin main --force
 >
 > 具体来说：
 > - `GLaDOS` 类的 `checkin()`、`get_status()`、`get_points()` → 接受上游更新
-> - `main()` 函数 → 保留你的推送逻辑，只更新签到流程
-> - 所有自定义函数 → 全部保留
-> - `APPLE_HTML_TEMPLATE` → 全部保留
-> - 环境变量读取 → 全部保留
+> - `glados_checkin/app.py` 的 `main()` 函数 → 保留你的推送逻辑，只更新签到流程
+> - `glados_checkin/bark.py`、`glados_checkin/notifiers.py`、`glados_checkin/renderers.py` → 全部保留
+> - `glados_checkin/config.py` 环境变量读取 → 全部保留
 
 ---
 

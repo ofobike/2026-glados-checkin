@@ -30,11 +30,14 @@
             version = "1.1.0";
             src = ./.;
             buildInputs = [ pythonEnv ];
+            nativeBuildInputs = [ pkgs.makeWrapper ];
             installPhase = ''
-              mkdir -p $out/bin
-              cp checkin.py $out/bin/glados-checkin
-              chmod +x $out/bin/glados-checkin
-              sed -i "1s|.*|#!${pythonEnv}/bin/python3|" $out/bin/glados-checkin
+              mkdir -p $out/bin $out/share/glados-checkin
+              cp checkin.py $out/share/glados-checkin/
+              cp -r glados_checkin $out/share/glados-checkin/
+              makeWrapper ${pythonEnv}/bin/python3 $out/bin/glados-checkin \
+                --set PYTHONPATH "$out/share/glados-checkin" \
+                --add-flags "$out/share/glados-checkin/checkin.py"
             '';
           };
         }

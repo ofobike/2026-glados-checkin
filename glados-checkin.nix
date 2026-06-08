@@ -57,6 +57,8 @@ in
       environment = {
         GLADOS_COOKIE = cfg.cookie;
         PUSH_LEVEL = cfg.pushLevel;
+        GLADOS_DATA_FILE = "/var/lib/glados-checkin/glados_data.json";
+        GLADOS_EXPORT_FILE = "/var/lib/glados-checkin/glados_checkin_log.csv";
       }
       // (optionalAttrs (cfg.telegramBotToken != null) {
         TELEGRAM_BOT_TOKEN = cfg.telegramBotToken;
@@ -73,6 +75,7 @@ in
         ExecStart = "${self.packages.${pkgs.system}.default}/bin/glados-checkin";
         LoadCredential = [ ]; # Can be used for secrets later if needed
         DynamicUser = true;
+        StateDirectory = "glados-checkin";
       };
     };
 

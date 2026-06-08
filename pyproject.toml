@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "glados-checkin"
+version = "1.1.0"
+description = "GLaDOS automatic check-in with multi-channel notifications."
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+  "requests>=2.28.0",
+]
+
+[project.scripts]
+glados-checkin = "glados_checkin.cli:run"
