@@ -2,6 +2,8 @@
 
 import os
 
+from glados_checkin.utils import log
+
 
 def run():
     """Run the configured mode."""
@@ -10,6 +12,7 @@ def run():
         or os.environ.get("GLADOS_RUN_MODE")
         or "checkin"
     ).strip().lower().replace("-", "_")
+    log(f"🚦 RUN_MODE={run_mode}")
 
     if run_mode in ("checkin", "glados", "glados_checkin"):
         from .app import main

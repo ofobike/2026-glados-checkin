@@ -31,6 +31,11 @@ import requests
 
 from glados_checkin.bark import bark_event_push, bark_push
 from glados_checkin.config import env_flag, env_int, env_text, github_actions_url
+from glados_checkin.lunar import (
+    BirthdayCalculator,
+    LUNAR_END_YEAR,
+    LUNAR_START_YEAR,
+)
 from glados_checkin.notifiers import dingtalk, pushplus_push, serverchan, telegram_push
 from glados_checkin.paths import DATA_FILE, EXPORT_FILE
 from glados_checkin.utils import BJT, log, mask_email, now_bjt
@@ -385,6 +390,7 @@ def record_checkin_run(data, email, checkin_ok, message, points=None, days=None)
     if not replaced:
         runs.append(record)
     data["checkin_runs"][email] = runs[-80:]
+    log(f"🧾 已记录签到运行: slot={slot} ok={bool(checkin_ok)} account={mask_email(email)}")
 
 
 def _heartbeat_grace_minutes():
@@ -430,6 +436,25 @@ def _recent_run_summary(data, limit=5):
     for _, email, r in rows[:limit]:
         icon = "✅" if r.get("ok") else "❌"
         lines.append(f"{icon} {mask_email(email)} | {r.get('slot', '?')} | {r.get('message', '')}")
+    return "\n".join(lines)
+
+
+def _heartbeat_debug_records(data, limit=8):
+    rows = []
+    for email, runs in data.get("checkin_runs", {}).items():
+        for r in runs[-limit:]:
+            rows.append((r.get("time", ""), email, r))
+    rows.sort(reverse=True)
+    if not rows:
+        return "暂无 checkin_runs 记录"
+
+    lines = []
+    for _, email, r in rows[:limit]:
+        icon = "✅" if r.get("ok") else "❌"
+        lines.append(
+            f"{icon} {mask_email(email)} | slot={r.get('slot', '?')} | "
+            f"time={r.get('time', '?')} | msg={r.get('message', '')}"
+        )
     return "\n".join(lines)
 
 # ================= 签到热力图 =================
@@ -1406,9 +1431,157 @@ def get_morning_greeting():
 
 COUNTDOWN_EVENTS = []
 
+
+def _is_birthday_event(name):
+    return "生日" in str(name or "")
+
+
+def _is_lunar_event(name, date_str):
+    text = f"{name} {date_str}".lower()
+    return "农历" in text or "lunar" in text
+
+
+def _strip_lunar_prefix(date_str):
+    value = str(date_str or "").strip()
+    for prefix in ("lunar:", "lunar-", "农历:", "农历-"):
+        if value.lower().startswith(prefix):
+            return value[len(prefix):].strip(), True
+    if value.startswith("农历"):
+        return value[2:].strip(" :-"), True
+    return value, False
+
+
+def _safe_annual_date(year, month, day):
+    try:
+        return date(year, month, day)
+    except ValueError:
+        if month == 2 and day == 29:
+            return date(year, 2, 28)
+        raise
+
+
+def _parse_lunar_date_parts(date_str):
+    value, has_lunar_prefix = _strip_lunar_prefix(date_str)
+    value = value.replace("/", "-").strip()
+    parts = value.split("-")
+    if len(parts) == 3:
+        year_text, month_text, day_text = parts
+        birth_year = int(year_text)
+    elif len(parts) == 2:
+        month_text, day_text = parts
+        birth_year = None
+    else:
+        raise ValueError("unsupported lunar date format")
+
+    leap = False
+    month_text = month_text.strip()
+    if month_text.startswith("闰"):
+        leap = True
+        month_text = month_text[1:]
+    elif month_text.lower().startswith("leap"):
+        leap = True
+        month_text = month_text[4:].strip(" :-")
+
+    return {
+        "birth_year": birth_year,
+        "month": int(month_text),
+        "day": int(day_text),
+        "leap": leap,
+        "has_lunar_prefix": has_lunar_prefix,
+    }
+
+
+def _next_lunar_annual_date(calculator, today=None):
+    today = today or now_bjt().date()
+    for lunar_year in range(today.year - 1, min(today.year + 4, LUNAR_END_YEAR) + 1):
+        if lunar_year < LUNAR_START_YEAR:
+            continue
+        try:
+            event_date = calculator.get_solar_date(lunar_year)
+        except Exception:
+            continue
+        if event_date >= today:
+            return event_date, lunar_year
+    raise ValueError("lunar event is outside supported year range")
+
+
+def _parse_countdown_event(name, date_str):
+    today = now_bjt().date()
+    name = str(name or "").strip()
+    date_str = str(date_str or "").strip()
+    if not name or not date_str:
+        return None
+
+    birthday = _is_birthday_event(name)
+    lunar = _is_lunar_event(name, date_str)
+
+    if lunar:
+        parts = _parse_lunar_date_parts(date_str)
+        calculator = BirthdayCalculator(
+            parts["birth_year"] or today.year,
+            parts["month"],
+            parts["day"],
+            is_leap=parts["leap"],
+        )
+        event_date, lunar_year = _next_lunar_annual_date(
+            calculator,
+            today=today,
+        )
+        return {
+            "name": name,
+            "event_date": event_date,
+            "yearly": True,
+            "birthday": birthday,
+            "birth_year": parts["birth_year"] if birthday else None,
+            "lunar": True,
+            "lunar_year": lunar_year,
+            "lunar_month": parts["month"],
+            "lunar_day": parts["day"],
+            "lunar_leap": parts["leap"],
+        }
+
+    if re.match(r"^\d{1,2}-\d{1,2}$", date_str):
+        month, day = [int(part) for part in date_str.split("-")]
+        event_date = _safe_annual_date(today.year, month, day)
+        if event_date < today:
+            event_date = _safe_annual_date(today.year + 1, month, day)
+        return {
+            "name": name,
+            "event_date": event_date,
+            "yearly": True,
+            "birthday": birthday,
+            "birth_year": None,
+            "lunar": False,
+        }
+
+    event_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+    if birthday:
+        target_date = _safe_annual_date(today.year, event_date.month, event_date.day)
+        if target_date < today:
+            target_date = _safe_annual_date(today.year + 1, event_date.month, event_date.day)
+        return {
+            "name": name,
+            "event_date": target_date,
+            "yearly": True,
+            "birthday": True,
+            "birth_year": event_date.year,
+            "lunar": False,
+        }
+
+    return {
+        "name": name,
+        "event_date": event_date,
+        "yearly": False,
+        "birthday": False,
+        "birth_year": None,
+        "lunar": False,
+    }
+
+
 def _load_countdown_events():
-    """从环境变量加载倒数日事件，格式: 纪念日:2026-01-01,生日:03-15"""
+    """从环境变量加载倒数日事件，格式: 纪念日:11-18,生日:1995-03-15,农历生日:lunar:1995-08-20"""
     global COUNTDOWN_EVENTS
+    COUNTDOWN_EVENTS = []
     raw = os.environ.get("COUNTDOWN_EVENTS") or "结婚纪念日:11-18"
     if not raw:
         return
@@ -1416,22 +1589,42 @@ def _load_countdown_events():
         item = item.strip()
         if ":" in item:
             name, date_str = item.split(":", 1)
-            name = name.strip()
-            date_str = date_str.strip()
             try:
-                if len(date_str) == 5:  # MM-DD 格式（每年重复）
-                    month, day = date_str.split("-")
-                    event_date = date(int(now_bjt().year), int(month), int(day))
-                    if event_date < now_bjt().date():
-                        event_date = date(int(now_bjt().year) + 1, int(month), int(day))
-                else:  # YYYY-MM-DD 格式
-                    event_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-                COUNTDOWN_EVENTS.append((name, event_date, len(date_str) == 5))
-            except:
-                pass
+                event = _parse_countdown_event(name, date_str)
+                if event:
+                    COUNTDOWN_EVENTS.append(event)
+            except Exception as e:
+                log(f"⚠️ 倒数日配置解析失败: {item} ({e})")
+
+
+def _countdown_distance_text(diff):
+    if diff <= 7:
+        return f"还有 {diff} 天，快到了！"
+    if diff <= 30:
+        return f"还有 {diff} 天"
+    months = diff // 30
+    days = diff % 30
+    if months > 0:
+        return f"还有 {months}个月{days}天"
+    return f"还有 {diff} 天"
+
+
+def _birthday_age(event):
+    birth_year = event.get("birth_year")
+    if not birth_year:
+        return None
+    event_year = event.get("lunar_year") if event.get("lunar") else event["event_date"].year
+    return max(0, int(event_year) - int(birth_year))
+
+
+def _lunar_suffix(event):
+    if not event.get("lunar"):
+        return ""
+    leap_text = "闰" if event.get("lunar_leap") else ""
+    return f"（农历{event.get('lunar_year')}年{leap_text}{event.get('lunar_month')}月{event.get('lunar_day')}日）"
 
 def get_countdown():
-    """获取自定义倒数日（支持每年重复）"""
+    """获取自定义倒数日（生日自动算年龄，普通事件只倒计时）"""
     if not COUNTDOWN_EVENTS:
         _load_countdown_events()
     if not COUNTDOWN_EVENTS:
@@ -1439,42 +1632,39 @@ def get_countdown():
 
     today = now_bjt().date()
     lines = []
-    for name, event_date, yearly in COUNTDOWN_EVENTS:
+    for event in COUNTDOWN_EVENTS:
+        name = event["name"]
+        event_date = event["event_date"]
         diff = (event_date - today).days
+        suffix = _lunar_suffix(event)
 
-        # 如果是每年重复的事件且已过，计算下一个
-        if yearly and diff < 0:
-            # 计算到下一年的同一天还有多少天
-            next_year = event_date.replace(year=today.year + 1)
-            diff = (next_year - today).days
+        if diff < 0:
+            lines.append(f"📅 【{name}】已过去 {abs(diff)} 天")
+            continue
 
-        # 计算已过天数（用于显示周年）
-        if yearly:
-            original = event_date.replace(year=2025)  # 假设起始年
-            years_passed = today.year - original.year
-            if today.month < original.month or (today.month == original.month and today.day < original.day):
-                years_passed -= 1
-        else:
-            years_passed = 0
+        if event.get("birthday"):
+            age = _birthday_age(event)
+            if diff == 0:
+                if age is not None:
+                    lines.append(f"🎂 今天是【{name}】{suffix}，祝你 {age} 岁生日快乐！")
+                else:
+                    lines.append(f"🎂 今天是【{name}】{suffix}，生日快乐！")
+            elif diff == 1:
+                if age is not None:
+                    lines.append(f"🎂 明天就是【{name}】{suffix}啦，届时 {age} 岁！")
+                else:
+                    lines.append(f"🎂 明天就是【{name}】{suffix}啦！")
+            else:
+                age_text = f"，届时 {age} 岁" if age is not None else ""
+                lines.append(f"🎂 距【{name}】{suffix}{_countdown_distance_text(diff)}{age_text}")
+            continue
 
         if diff == 0:
-            if years_passed > 0:
-                lines.append(f"🎉 今天是【{name}】{years_passed}周年！")
-            else:
-                lines.append(f"🎉 今天是【{name}】！")
+            lines.append(f"🎉 今天是【{name}】{suffix}！")
         elif diff == 1:
-            lines.append(f"📅 明天就是【{name}】啦！")
-        elif diff <= 7:
-            lines.append(f"📅 距【{name}】还有 {diff} 天，快到了！")
-        elif diff <= 30:
-            lines.append(f"📅 距【{name}】还有 {diff} 天")
+            lines.append(f"📅 明天就是【{name}】{suffix}啦！")
         else:
-            months = diff // 30
-            days = diff % 30
-            if months > 0:
-                lines.append(f"📅 距【{name}】还有 {months}个月{days}天")
-            else:
-                lines.append(f"📅 距【{name}】还有 {diff} 天")
+            lines.append(f"📅 距【{name}】{suffix}{_countdown_distance_text(diff)}")
 
     if lines:
         return "🗓 倒数日:\n  " + "\n  ".join(lines)
@@ -2152,21 +2342,42 @@ def send_heartbeat_check():
     log("💓 GLaDOS 心跳监控开始...")
     data = load_data()
     bark_key = os.environ.get("BARK_KEY")
-    if not bark_key:
-        log("⚠️ 未配置 BARK_KEY，无法发送心跳告警")
-        return
-
+    now = now_bjt()
     slot_time, slot_dt, due_dt, due = _heartbeat_slot_due()
     slot = _slot_key(slot_dt, slot_time)
-    if not due and not env_flag("HEARTBEAT_FORCE", False):
+    configured_times = ", ".join(t.strftime("%H:%M") for t in _configured_checkin_times())
+    force = env_flag("HEARTBEAT_FORCE", False)
+    has_success = _slot_has_success(data, slot)
+    alerted = _heartbeat_already_alerted(data, slot)
+
+    log("🔎 心跳核对参数:")
+    log(f"   当前北京时间: {now.strftime('%Y-%m-%d %H:%M:%S')}")
+    log(f"   CHECKIN_HOURS: {os.environ.get('CHECKIN_HOURS') or '09:30,21:30'} -> {configured_times}")
+    log(f"   HEARTBEAT_GRACE_MINUTES: {_heartbeat_grace_minutes()}")
+    log(f"   当前核对 slot: {slot}")
+    log(f"   slot 时间: {slot_dt.strftime('%Y-%m-%d %H:%M:%S')}")
+    log(f"   应开始核对时间: {due_dt.strftime('%Y-%m-%d %H:%M:%S')}")
+    log(f"   是否到核对时间: {due}")
+    log(f"   HEARTBEAT_FORCE: {force}")
+    log(f"   该 slot 是否已有成功签到: {has_success}")
+    log(f"   该 slot 今日是否已告警: {alerted}")
+    log("🧾 最近签到运行记录:")
+    for line in _heartbeat_debug_records(data).splitlines():
+        log(f"   {line}")
+
+    if not bark_key:
+        log("⚠️ 未配置 BARK_KEY，无法发送心跳告警；本次仅输出核对日志")
+        return
+
+    if not due and not force:
         log(f"⏭️ 当前 slot {slot} 尚未到告警时间，预计 {due_dt.strftime('%H:%M')} 后检查")
         return
 
-    if _slot_has_success(data, slot):
+    if has_success:
         log(f"✅ 心跳正常: {slot} 已有成功签到记录")
         return
 
-    if _heartbeat_already_alerted(data, slot) and not env_flag("HEARTBEAT_FORCE", False):
+    if alerted and not force:
         log(f"⏭️ 心跳告警已发送过: {slot}")
         return
 

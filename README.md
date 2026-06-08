@@ -67,6 +67,7 @@
 - [🚀 快速部署](#-快速部署)
 - [⭐ 推荐方案：cron-job.org 配置定时](#-推荐方案-cron-joborg-配置定时)
 - [💻 本地/独立服务器部署](#-本地独立服务器部署教程)
+- [🌅 Bark 独立每日早报](#-bark-独立每日早报)
 - [❄️ NixOS 服务配置](#️-nixos-服务配置)
 - [📊 推送效果预览](#-推送效果预览)
 - [❓ 常见问题](#-常见问题)
@@ -218,7 +219,7 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | 📖 **每日成语**         | 成语故事 + 释义                         |
 | 🍚 **今天吃什么**       | 随机推荐今日美食                        |
 | 🌅 **早安问候**         | 每天一句暖心早安语                      |
-| 🗃 **自定义倒数日**     | 生日/纪念日/考试倒计时                  |
+| 🗃 **自定义倒数日**     | 生日自动算岁数，支持公历/农历生日、纪念日/考试倒计时 |
 | 📊 **生活指数**         | 紫外线/运动/洗车/穿衣/舒适度指数       |
 | 🔧 **持续维护**         | 发现问题及时修复                        |
 
@@ -275,7 +276,9 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | `MONTHLY_GOAL`       | ❌ 否 | 每月签到目标天数，默认 `25`。用于月度目标追踪                              |
 | `MOOD_NOTE`          | ❌ 否 | 签到日记内容，每次签到时附带的心情记录                                    |
 | `ZODIAC_SIGN`        | ❌ 否 | 星座名称，如 `白羊座`、`天蝎座`。不填则不显示星座运势                    |
-| `COUNTDOWN_EVENTS`   | ❌ 否 | 自定义倒数日，格式: `纪念日:2026-01-01,生日:03-15`（逗号分隔）           |
+| `COUNTDOWN_EVENTS`   | ❌ 否 | 自定义倒数日，格式: `纪念日:11-18,生日:1995-03-15,农历生日:lunar:1995-08-20`（逗号分隔） |
+| `MORNING_TODOS` / `DAILY_TODOS` | ❌ 否 | Bark 每日早报里的今日待办，支持换行或分号分隔。                 |
+| `MORNING_REMINDER` / `DAILY_REMINDER` | ❌ 否 | Bark 每日早报里的每日提醒。                              |
 
 > 💡 **推送渠道可自由组合**：你可以同时配置多个推送渠道，签到结果会同时推送到所有已配置的渠道。详见 [推送渠道说明](#-推送渠道说明)。
 
@@ -472,11 +475,13 @@ else:
 | `MONTHLY_GOAL`    | 天数               | `25`                  | 每月签到目标天数             |
 | `MOOD_NOTE`       | 文本               | 空                    | 签到日记内容                 |
 | `ZODIAC_SIGN`     | 星座名称           | `水瓶座`              | 星座运势                     |
-| `COUNTDOWN_EVENTS` | 事件:日期，逗号分隔 | `结婚纪念日:11-18`   | 自定义倒数日                 |
+| `COUNTDOWN_EVENTS` | 事件:日期，逗号分隔 | `结婚纪念日:11-18`   | 自定义倒数日；名字包含“生日”会自动计算岁数 |
 | `BARK_GROUP`      | 分组名             | `GLaDOS`              | Bark 通知分组                |
 | `BARK_BADGE_MODE` | `days/success/fail/off` | `days`          | Bark App 角标显示内容        |
 | `BARK_LOW_DAYS`   | 天数               | `7`                   | 剩余天数过低时升级提醒       |
 | `BARK_CALL_ON_EXPIRE` | `true/false`  | `false`               | Cookie 过期时电话式提醒      |
+| `MORNING_TODOS` / `DAILY_TODOS` | 文本，换行或分号分隔 | 空 | Bark 每日早报待办 |
+| `MORNING_REMINDER` / `DAILY_REMINDER` | 文本 | 空 | Bark 每日提醒 |
 
 > 💡 **配置说明**：
 > - **必填配置**：必须配置，否则无法签到
@@ -616,6 +621,20 @@ else:
 
 ## ⭐ 推荐方案：cron-job.org 配置定时
 
+### 推荐任务总览
+
+建议在 cron-job.org 中创建多个独立任务，每个任务只做一件事，避免 Bark 早报和 GLaDOS 签到重复触发：
+
+| 时间 | 任务 | Raw Body |
+|------|------|----------|
+| **07:30** | Bark 每日早报 | `{ "ref": "main", "inputs": { "mode": "morning" } }` |
+| **09:30** | GLaDOS 早签到 | `{ "ref": "main", "inputs": { "mode": "checkin" } }` |
+| **09:45** | GLaDOS 早签到心跳 | `{ "ref": "main", "inputs": { "mode": "heartbeat" } }` |
+| **21:30** | GLaDOS 晚签到 | `{ "ref": "main", "inputs": { "mode": "checkin" } }` |
+| **21:45** | GLaDOS 晚签到心跳 | `{ "ref": "main", "inputs": { "mode": "heartbeat" } }` |
+
+> 💡 `mode=morning` 是独立 Bark 早报，不会读取 `GLADOS_COOKIE`，也不会执行签到。
+
 ### 配置步骤
 
 #### 第一步：获取 GitHub Personal Access Token
@@ -681,7 +700,7 @@ else:
 **请求体（Request body）**：选择 Raw Body，填入：
 
 ```json
-{ "ref": "main" }
+{ "ref": "main", "inputs": { "mode": "checkin" } }
 ```
 
 ![常用配置预览](images/cron_common.png)
@@ -696,7 +715,30 @@ else:
 - 执行时间改为 **21:30**
 - 其他配置完全相同
 
-#### 第五步：测试验证
+#### 第五步：创建 Bark 每日早报任务（07:30，可选）
+
+每日早报是独立 Bark 通知任务，不会触发 GLaDOS 签到，也不需要 `GLADOS_COOKIE`。你只需要在 GitHub Secrets 中配置 `BARK_KEY`。
+
+复制早签到任务，创建一个新任务：
+
+| 选项 | 值 |
+|------|----|
+| **Title** | `Bark 每日早报` |
+| **执行时间** | **07:30**，Time zone 选择 `Asia/Shanghai` |
+| **Request method** | POST |
+| **Headers** | 和签到任务完全相同 |
+| **Raw Body** | `{ "ref": "main", "inputs": { "mode": "morning" } }` |
+
+早报可选 Secrets：
+
+| Secret | 说明 |
+|--------|------|
+| `MORNING_TODOS` / `DAILY_TODOS` | 今日待办，支持换行或分号分隔 |
+| `MORNING_REMINDER` / `DAILY_REMINDER` | 每日提醒 |
+| `MORNING_TITLE` | 早报标题，默认 `每日早报` |
+| `MORNING_BARK_URL` | 点击通知打开的 URL，可填网页或 `shortcuts://` |
+
+#### 第六步：测试验证
 
 1. 在任务列表点击 **Test run** 测试
 2. 成功会显示 **204 No Content** ✅
@@ -705,7 +747,7 @@ else:
 
 3. 到 GitHub 仓库的 **Actions** 页面查看，应该有新的运行记录
 
-#### 第六步：创建心跳监控任务（可选但推荐）
+#### 第七步：创建心跳监控任务（可选但推荐）
 
 心跳监控用于解决“cron-job.org 或 GitHub Actions 没触发，但你不知道”的问题。它不会重新签到，只检查本地缓存里是否已有本轮成功签到记录。
 
@@ -717,6 +759,8 @@ else:
 | `GLaDOS 晚签到心跳` | **21:45** | `{ "ref": "main", "inputs": { "mode": "heartbeat" } }` |
 
 > 💡 心跳告警默认在签到时间后 `12` 分钟开始生效。你可以通过 Secret `HEARTBEAT_GRACE_MINUTES` 调整，例如设置为 `15`。
+
+> ⚠️ 心跳任务要晚于签到任务执行。推荐 `09:30` 签到、`09:45` 心跳；`21:30` 签到、`21:45` 心跳。
 
 ---
 
@@ -803,11 +847,28 @@ RUN_MODE=morning python3 checkin.py
 
 每日早报是独立 Bark 通知任务，不依赖 GLaDOS Cookie。只需要配置 `BARK_KEY`，然后用 `RUN_MODE=morning` 运行。
 
+它和签到完全分开：
+
+| 模式 | 用途 | 是否需要 `GLADOS_COOKIE` | 是否会签到 |
+|------|------|--------------------------|------------|
+| `checkin` | GLaDOS 签到 | 需要 | 会 |
+| `heartbeat` | 签到心跳检查 | 不需要 | 不会 |
+| `morning` | Bark 每日早报 | 不需要 | 不会 |
+
 推荐在 cron-job.org 里触发 GitHub Actions 时传：
 
 ```json
 {"ref":"main","inputs":{"mode":"morning"}}
 ```
+
+推荐时间：每天 **07:30**，Time zone 选择 `Asia/Shanghai`。
+
+早报目前会自动整合：
+
+- 天气、穿衣建议、生活指数
+- 农历、节假日、倒数日
+- 今日一句、英文名言
+- 今日待办、每日提醒
 
 可选配置：
 
@@ -822,6 +883,27 @@ RUN_MODE=morning python3 checkin.py
 | `MORNING_GROUP_SUFFIX` | Bark 分组后缀，默认 `早报` |
 | `MORNING_BARK_BODY_LIMIT` | 锁屏正文长度，默认 `1200` |
 | `MORNING_BARK_COPY_LIMIT` | 复制内容长度，默认 `1200` |
+
+### 倒数日和生日配置
+
+`COUNTDOWN_EVENTS` 会同时出现在 GLaDOS 签到报告和 Bark 每日早报里。多个事件用英文逗号分隔：
+
+```text
+生日:1995-06-09,农历生日:lunar:1995-08-20,结婚纪念日:11-18,域名到期:2026-12-31
+```
+
+| 写法 | 说明 |
+|------|------|
+| `生日:1995-06-09` | 公历生日，每年提醒，并自动显示届时几岁 |
+| `生日:06-09` | 公历生日，每年提醒，但不计算岁数 |
+| `农历生日:lunar:1995-08-20` | 农历生日，每年换算到对应公历日期，并自动显示届时几岁 |
+| `农历生日:lunar:08-20` | 农历生日，每年提醒，但不计算岁数 |
+| `结婚纪念日:11-18` | 每年重复倒数日，只倒计时，不自动算周年 |
+| `域名到期:2026-12-31` | 固定公历日期，到期后显示已过去天数 |
+
+> 💡 只有事件名里包含“生日”才会自动计算岁数；其他日期不会误算“几岁”或“周年”。农历日期支持 `1900-2100` 年，闰月可写成 `农历生日:lunar:1995-闰8-20`。
+
+> 💡 农历生日优先使用 `lunar-python` 计算，依赖已写入 `requirements.txt`；GitHub Actions 会自动安装。本地运行前请执行 `pip install -r requirements.txt`。
 
 ---
 
@@ -1190,11 +1272,12 @@ cookie1&cookie2&cookie3
 | `glados_checkin/notifiers.py` | PushPlus / Server酱 / 钉钉 / Telegram 发送 |
 | `glados_checkin/renderers.py` | PushPlus / Telegram 消息渲染模块    |
 | `glados_checkin/config.py` | 环境变量读取工具                         |
+| `glados_checkin/lunar.py` | 农历转公历工具，优先使用 `lunar-python`，用于农历生日倒数日 |
 | `glados_checkin/paths.py` | 数据文件、导出文件路径                    |
 | `glados_checkin/utils.py` | 日志、北京时间、邮箱脱敏等通用工具        |
 | `pyproject.toml`        | 标准 Python 项目元数据和命令入口            |
 | `.github/workflows/checkin.yml` | GitHub Actions 工作流配置          |
-| `requirements.txt`      | Python 依赖（仅 requests）                  |
+| `requirements.txt`      | Python 依赖（requests、lunar-python）        |
 | `flake.nix`             | Nix Flake 配置                              |
 | `flake.lock`            | Nix Flake 锁定文件                          |
 | `glados-checkin.nix`    | NixOS 服务模块定义                          |
@@ -1213,6 +1296,14 @@ cookie1&cookie2&cookie3
 ---
 
 ## 📝 更新日志
+
+### v1.6.0 (2026-06-08) 🌅 Bark 独立早报与标准包结构
+
+- ✅ 拆分为标准 Python 包结构，`checkin.py` 保留兼容入口
+- ✅ 新增 `RUN_MODE=morning`，Bark 每日早报与 GLaDOS 签到完全分开
+- ✅ cron-job.org 支持独立触发 `checkin`、`heartbeat`、`morning`
+- ✅ README 补充 07:30 早报、09:45/21:45 心跳任务配置
+- ✅ 倒数日支持生日自动计算岁数，农历生日使用 `lunar-python` 自动换算公历日期
 
 ### v1.5.0 (2026-06-07) 💓 Bark 心跳与兑换提醒
 
