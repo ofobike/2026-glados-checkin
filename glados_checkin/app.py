@@ -1661,51 +1661,88 @@ def _lunar_suffix(event):
         f"{event.get('lunar_month')}月{event.get('lunar_day')}日 / 阳历{solar_text}）"
     )
 
+
+def _date_label(event):
+    if event.get("lunar"):
+        leap_text = "闰" if event.get("lunar_leap") else ""
+        return (
+            f"农历{event.get('lunar_year')}年{leap_text}"
+            f"{event.get('lunar_month')}月{event.get('lunar_day')}日 / "
+            f"阳历{event['event_date'].strftime('%Y-%m-%d')}"
+        )
+    if event.get("yearly"):
+        return event["event_date"].strftime("%m-%d")
+    return event["event_date"].strftime("%Y-%m-%d")
+
+
+def _short_distance_text(diff):
+    if diff == 0:
+        return "今天"
+    if diff == 1:
+        return "明天"
+    return f"还有 {diff} 天"
+
+
+def _format_birthday_line(event, diff):
+    age = _birthday_age(event)
+    age_text = f"，{age} 岁" if age is not None else ""
+    return f"🎂 {event['name']}：{_date_label(event)}{age_text}，{_short_distance_text(diff)}"
+
+
+def _format_date_line(event, diff):
+    if diff < 0:
+        return f"📅 {event['name']}：{_date_label(event)}，已过去 {abs(diff)} 天"
+    return f"📅 {event['name']}：{_date_label(event)}，{_short_distance_text(diff)}"
+
+
 def get_countdown():
-    """获取自定义倒数日（生日自动算年龄，普通事件只倒计时）"""
+    """获取自定义倒数日（生日分组展示，普通事件只倒计时）"""
     if not COUNTDOWN_EVENTS:
         _load_countdown_events()
     if not COUNTDOWN_EVENTS:
         return ""
 
     today = now_bjt().date()
-    lines = []
+    birthday_rows = []
+    date_rows = []
     for event in COUNTDOWN_EVENTS:
-        name = event["name"]
         event_date = event["event_date"]
         diff = (event_date - today).days
-        suffix = _lunar_suffix(event)
-
-        if diff < 0:
-            lines.append(f"📅 【{name}】已过去 {abs(diff)} 天")
-            continue
 
         if event.get("birthday"):
-            age = _birthday_age(event)
-            if diff == 0:
-                if age is not None:
-                    lines.append(f"🎂 今天是【{name}】{suffix}，祝你 {age} 岁生日快乐！")
-                else:
-                    lines.append(f"🎂 今天是【{name}】{suffix}，生日快乐！")
-            elif diff == 1:
-                if age is not None:
-                    lines.append(f"🎂 明天就是【{name}】{suffix}啦，届时 {age} 岁！")
-                else:
-                    lines.append(f"🎂 明天就是【{name}】{suffix}啦！")
-            else:
-                age_text = f"，届时 {age} 岁" if age is not None else ""
-                lines.append(f"🎂 距【{name}】{suffix}{_countdown_distance_text(diff)}{age_text}")
+            birthday_rows.append((diff, event["event_date"], event))
             continue
 
-        if diff == 0:
-            lines.append(f"🎉 今天是【{name}】{suffix}！")
-        elif diff == 1:
-            lines.append(f"📅 明天就是【{name}】{suffix}啦！")
-        else:
-            lines.append(f"📅 距【{name}】{suffix}{_countdown_distance_text(diff)}")
+        date_rows.append((diff, event["event_date"], event))
+
+    lines = []
+    if birthday_rows:
+        birthday_rows.sort(key=lambda item: (item[0] < 0, item[0], item[1]))
+        lines.append("🎂 生日提醒:")
+        birthday_limit = env_int("COUNTDOWN_BIRTHDAY_LIMIT", 3) or 3
+        birthday_limit = max(1, birthday_limit)
+        for diff, _, event in birthday_rows[:birthday_limit]:
+            lines.append(f"  {_format_birthday_line(event, diff)}")
+        hidden = len(birthday_rows) - birthday_limit
+        if hidden > 0:
+            nearest_diff = birthday_rows[birthday_limit][0]
+            lines.append(f"  ... 还有 {hidden} 个生日已收起，最近一个{_short_distance_text(nearest_diff)}")
+
+    if date_rows:
+        date_rows.sort(key=lambda item: (item[0] < 0, item[0], item[1]))
+        if lines:
+            lines.append("")
+        lines.append("📅 重要日期:")
+        date_limit = env_int("COUNTDOWN_DATE_LIMIT", 5) or 5
+        date_limit = max(1, date_limit)
+        for diff, _, event in date_rows[:date_limit]:
+            lines.append(f"  {_format_date_line(event, diff)}")
+        hidden = len(date_rows) - date_limit
+        if hidden > 0:
+            lines.append(f"  ... 还有 {hidden} 个日期已收起")
 
     if lines:
-        return "🗓 倒数日:\n  " + "\n  ".join(lines)
+        return "🗓 倒数日:\n" + "\n".join(lines)
     return ""
 
 # ================= 生活指数 =================

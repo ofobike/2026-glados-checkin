@@ -277,6 +277,8 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | `MOOD_NOTE`          | ❌ 否 | 签到日记内容，每次签到时附带的心情记录                                    |
 | `ZODIAC_SIGN`        | ❌ 否 | 星座名称，如 `白羊座`、`天蝎座`。不填则不显示星座运势                    |
 | `COUNTDOWN_EVENTS`   | ❌ 否 | 自定义倒数日，格式: `纪念日:11-18,生日:1995-03-15,农历生日:lunar:1995-08-20`（逗号分隔） |
+| `COUNTDOWN_BIRTHDAY_LIMIT` | ❌ 否 | 倒数日里最多展示几个生日，默认 `3`，其余自动收起。                      |
+| `COUNTDOWN_DATE_LIMIT` | ❌ 否 | 倒数日里最多展示几个普通日期，默认 `5`，其余自动收起。                  |
 | `MORNING_TODOS` / `DAILY_TODOS` | ❌ 否 | Bark 每日早报里的今日待办，支持换行或分号分隔。                 |
 | `MORNING_REMINDER` / `DAILY_REMINDER` | ❌ 否 | Bark 每日早报里的每日提醒。                              |
 
@@ -476,6 +478,8 @@ else:
 | `MOOD_NOTE`       | 文本               | 空                    | 签到日记内容                 |
 | `ZODIAC_SIGN`     | 星座名称           | `水瓶座`              | 星座运势                     |
 | `COUNTDOWN_EVENTS` | 事件:日期，逗号分隔 | `结婚纪念日:11-18`   | 自定义倒数日；名字包含“生日”会自动计算岁数 |
+| `COUNTDOWN_BIRTHDAY_LIMIT` | 数字 | `3` | 倒数日里最多展示几个生日，其他自动收起 |
+| `COUNTDOWN_DATE_LIMIT` | 数字 | `5` | 倒数日里最多展示几个普通日期，其他自动收起 |
 | `BARK_GROUP`      | 分组名             | `GLaDOS`              | Bark 通知分组                |
 | `BARK_BADGE_MODE` | `days/success/fail/off` | `days`          | Bark App 角标显示内容        |
 | `BARK_LOW_DAYS`   | 天数               | `7`                   | 剩余天数过低时升级提醒       |
@@ -906,10 +910,19 @@ RUN_MODE=morning python3 checkin.py
 通知示例：
 
 ```text
-🎂 距【自己农历生日】（农历2027年2月1日 / 阳历2027-03-08）还有 9个月3天，届时 35 岁
+🗓 倒数日:
+🎂 生日提醒:
+  🎂 自己农历生日：农历2027年2月1日 / 阳历2027-03-08，35 岁，还有 273 天
+  🎂 媳妇农历生日：农历2027年2月1日 / 阳历2027-03-08，35 岁，还有 273 天
+  ... 还有 2 个生日已收起，最近一个还有 310 天
+
+📅 重要日期:
+  📅 结婚纪念日：11-18，还有 163 天
 ```
 
 > 💡 农历生日优先使用 `lunar-python` 计算，依赖已写入 `requirements.txt`；GitHub Actions 会自动安装。本地运行前请执行 `pip install -r requirements.txt`。
+
+> 💡 生日太多时默认只展示最近 3 个，可以用 `COUNTDOWN_BIRTHDAY_LIMIT` 调整；普通日期默认最多展示 5 个，可以用 `COUNTDOWN_DATE_LIMIT` 调整。
 
 ---
 
