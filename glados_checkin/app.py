@@ -1655,7 +1655,11 @@ def _lunar_suffix(event):
     if not event.get("lunar"):
         return ""
     leap_text = "闰" if event.get("lunar_leap") else ""
-    return f"（农历{event.get('lunar_year')}年{leap_text}{event.get('lunar_month')}月{event.get('lunar_day')}日）"
+    solar_text = event["event_date"].strftime("%Y-%m-%d")
+    return (
+        f"（农历{event.get('lunar_year')}年{leap_text}"
+        f"{event.get('lunar_month')}月{event.get('lunar_day')}日 / 阳历{solar_text}）"
+    )
 
 def get_countdown():
     """获取自定义倒数日（生日自动算年龄，普通事件只倒计时）"""
