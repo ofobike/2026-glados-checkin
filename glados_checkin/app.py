@@ -1683,16 +1683,24 @@ def _short_distance_text(diff):
     return f"还有 {diff} 天"
 
 
+def _display_event_name(event):
+    name = str(event.get("name", "")).strip()
+    if event.get("birthday") and event.get("lunar"):
+        name = name.replace("农历生日", "生日").replace("农历", "")
+        name = re.sub(r"\s+", " ", name).strip()
+    return name or str(event.get("name", "")).strip()
+
+
 def _format_birthday_line(event, diff):
     age = _birthday_age(event)
     age_text = f"，{age} 岁" if age is not None else ""
-    return f"🎂 {event['name']}：{_date_label(event)}{age_text}，{_short_distance_text(diff)}"
+    return f"🎂 {_display_event_name(event)}：{_date_label(event)}{age_text}，{_short_distance_text(diff)}"
 
 
 def _format_date_line(event, diff):
     if diff < 0:
-        return f"📅 {event['name']}：{_date_label(event)}，已过去 {abs(diff)} 天"
-    return f"📅 {event['name']}：{_date_label(event)}，{_short_distance_text(diff)}"
+        return f"📅 {_display_event_name(event)}：{_date_label(event)}，已过去 {abs(diff)} 天"
+    return f"📅 {_display_event_name(event)}：{_date_label(event)}，{_short_distance_text(diff)}"
 
 
 def get_countdown():
