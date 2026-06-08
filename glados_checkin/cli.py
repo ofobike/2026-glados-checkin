@@ -26,5 +26,9 @@ def run():
         from .morning import send_morning_report
 
         send_morning_report()
+    elif run_mode in ("reminder", "important_day", "important_days", "day_reminder"):
+        from .app import send_important_day_reminders
+
+        send_important_day_reminders()
     else:
         raise SystemExit(f"Unknown RUN_MODE: {run_mode}")

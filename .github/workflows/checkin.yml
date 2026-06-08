@@ -4,7 +4,7 @@ on:
   workflow_dispatch:  # 仅保留手动触发（定时由 cron-job.org 管理）
     inputs:
       mode:
-        description: '运行模式：checkin=签到，heartbeat=心跳监控'
+        description: '运行模式：checkin=签到，heartbeat=心跳监控，morning=早报，reminder=重要日提醒'
         required: false
         default: 'checkin'
 
@@ -90,6 +90,8 @@ jobs:
           MOOD_NOTE: ${{ secrets.MOOD_NOTE }}
           ZODIAC_SIGN: ${{ secrets.ZODIAC_SIGN }}
           COUNTDOWN_EVENTS: ${{ secrets.COUNTDOWN_EVENTS }}
+          COUNTDOWN_BIRTHDAY_LIMIT: ${{ secrets.COUNTDOWN_BIRTHDAY_LIMIT }}
+          COUNTDOWN_DATE_LIMIT: ${{ secrets.COUNTDOWN_DATE_LIMIT }}
           MORNING_TITLE: ${{ secrets.MORNING_TITLE }}
           MORNING_TODOS: ${{ secrets.MORNING_TODOS }}
           DAILY_TODOS: ${{ secrets.DAILY_TODOS }}
@@ -101,6 +103,19 @@ jobs:
           MORNING_GROUP_SUFFIX: ${{ secrets.MORNING_GROUP_SUFFIX }}
           MORNING_BARK_BODY_LIMIT: ${{ secrets.MORNING_BARK_BODY_LIMIT }}
           MORNING_BARK_COPY_LIMIT: ${{ secrets.MORNING_BARK_COPY_LIMIT }}
+          IMPORTANT_DAY_REMINDER_DAYS: ${{ secrets.IMPORTANT_DAY_REMINDER_DAYS }}
+          IMPORTANT_DAY_FORCE: ${{ secrets.IMPORTANT_DAY_FORCE }}
+          IMPORTANT_DAY_TITLE: ${{ secrets.IMPORTANT_DAY_TITLE }}
+          IMPORTANT_DAY_BARK_URL: ${{ secrets.IMPORTANT_DAY_BARK_URL }}
+          IMPORTANT_DAY_GROUP_SUFFIX: ${{ secrets.IMPORTANT_DAY_GROUP_SUFFIX }}
+          IMPORTANT_DAY_BARK_BODY_LIMIT: ${{ secrets.IMPORTANT_DAY_BARK_BODY_LIMIT }}
+          IMPORTANT_DAY_BARK_COPY_LIMIT: ${{ secrets.IMPORTANT_DAY_BARK_COPY_LIMIT }}
+          IMPORTANT_DAY_BARK_LEVEL_EARLY: ${{ secrets.IMPORTANT_DAY_BARK_LEVEL_EARLY }}
+          IMPORTANT_DAY_BARK_LEVEL_SOON: ${{ secrets.IMPORTANT_DAY_BARK_LEVEL_SOON }}
+          IMPORTANT_DAY_BARK_LEVEL_URGENT: ${{ secrets.IMPORTANT_DAY_BARK_LEVEL_URGENT }}
+          IMPORTANT_DAY_BARK_SOUND_EARLY: ${{ secrets.IMPORTANT_DAY_BARK_SOUND_EARLY }}
+          IMPORTANT_DAY_BARK_SOUND_SOON: ${{ secrets.IMPORTANT_DAY_BARK_SOUND_SOON }}
+          IMPORTANT_DAY_BARK_SOUND_URGENT: ${{ secrets.IMPORTANT_DAY_BARK_SOUND_URGENT }}
 
       - name: Retry on Failure
         if: failure()
@@ -163,6 +178,8 @@ jobs:
           MOOD_NOTE: ${{ secrets.MOOD_NOTE }}
           ZODIAC_SIGN: ${{ secrets.ZODIAC_SIGN }}
           COUNTDOWN_EVENTS: ${{ secrets.COUNTDOWN_EVENTS }}
+          COUNTDOWN_BIRTHDAY_LIMIT: ${{ secrets.COUNTDOWN_BIRTHDAY_LIMIT }}
+          COUNTDOWN_DATE_LIMIT: ${{ secrets.COUNTDOWN_DATE_LIMIT }}
           MORNING_TITLE: ${{ secrets.MORNING_TITLE }}
           MORNING_TODOS: ${{ secrets.MORNING_TODOS }}
           DAILY_TODOS: ${{ secrets.DAILY_TODOS }}
@@ -174,3 +191,16 @@ jobs:
           MORNING_GROUP_SUFFIX: ${{ secrets.MORNING_GROUP_SUFFIX }}
           MORNING_BARK_BODY_LIMIT: ${{ secrets.MORNING_BARK_BODY_LIMIT }}
           MORNING_BARK_COPY_LIMIT: ${{ secrets.MORNING_BARK_COPY_LIMIT }}
+          IMPORTANT_DAY_REMINDER_DAYS: ${{ secrets.IMPORTANT_DAY_REMINDER_DAYS }}
+          IMPORTANT_DAY_FORCE: ${{ secrets.IMPORTANT_DAY_FORCE }}
+          IMPORTANT_DAY_TITLE: ${{ secrets.IMPORTANT_DAY_TITLE }}
+          IMPORTANT_DAY_BARK_URL: ${{ secrets.IMPORTANT_DAY_BARK_URL }}
+          IMPORTANT_DAY_GROUP_SUFFIX: ${{ secrets.IMPORTANT_DAY_GROUP_SUFFIX }}
+          IMPORTANT_DAY_BARK_BODY_LIMIT: ${{ secrets.IMPORTANT_DAY_BARK_BODY_LIMIT }}
+          IMPORTANT_DAY_BARK_COPY_LIMIT: ${{ secrets.IMPORTANT_DAY_BARK_COPY_LIMIT }}
+          IMPORTANT_DAY_BARK_LEVEL_EARLY: ${{ secrets.IMPORTANT_DAY_BARK_LEVEL_EARLY }}
+          IMPORTANT_DAY_BARK_LEVEL_SOON: ${{ secrets.IMPORTANT_DAY_BARK_LEVEL_SOON }}
+          IMPORTANT_DAY_BARK_LEVEL_URGENT: ${{ secrets.IMPORTANT_DAY_BARK_LEVEL_URGENT }}
+          IMPORTANT_DAY_BARK_SOUND_EARLY: ${{ secrets.IMPORTANT_DAY_BARK_SOUND_EARLY }}
+          IMPORTANT_DAY_BARK_SOUND_SOON: ${{ secrets.IMPORTANT_DAY_BARK_SOUND_SOON }}
+          IMPORTANT_DAY_BARK_SOUND_URGENT: ${{ secrets.IMPORTANT_DAY_BARK_SOUND_URGENT }}

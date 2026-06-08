@@ -100,6 +100,7 @@ def load_data():
                 ("checkin_runs", {}),
                 ("heartbeat_alerts", {}),
                 ("exchange_alerts", {}),
+                ("important_day_alerts", {}),
             ]:
                 if key not in d:
                     d[key] = default
@@ -115,6 +116,7 @@ def load_data():
         "checkin_runs": {},
         "heartbeat_alerts": {},
         "exchange_alerts": {},
+        "important_day_alerts": {},
     }
 
 def save_data(data):
@@ -1612,23 +1614,30 @@ def _parse_countdown_event(name, date_str):
     }
 
 
+def _parse_countdown_events(raw=None):
+    events = []
+    raw = os.environ.get("COUNTDOWN_EVENTS") if raw is None else raw
+    raw = raw or "结婚纪念日:11-18"
+    if not raw:
+        return events
+    for item in raw.split(","):
+        item = item.strip()
+        if ":" not in item:
+            continue
+        name, date_str = item.split(":", 1)
+        try:
+            event = _parse_countdown_event(name, date_str)
+            if event:
+                events.append(event)
+        except Exception as e:
+            log(f"⚠️ 倒数日配置解析失败: {item} ({e})")
+    return events
+
+
 def _load_countdown_events():
     """从环境变量加载倒数日事件，格式: 纪念日:11-18,生日:1995-03-15,农历生日:lunar:1995-08-20"""
     global COUNTDOWN_EVENTS
-    COUNTDOWN_EVENTS = []
-    raw = os.environ.get("COUNTDOWN_EVENTS") or "结婚纪念日:11-18"
-    if not raw:
-        return
-    for item in raw.split(","):
-        item = item.strip()
-        if ":" in item:
-            name, date_str = item.split(":", 1)
-            try:
-                event = _parse_countdown_event(name, date_str)
-                if event:
-                    COUNTDOWN_EVENTS.append(event)
-            except Exception as e:
-                log(f"⚠️ 倒数日配置解析失败: {item} ({e})")
+    COUNTDOWN_EVENTS = _parse_countdown_events()
 
 
 def _countdown_distance_text(diff):
@@ -1691,6 +1700,189 @@ def _display_event_name(event):
     return name or str(event.get("name", "")).strip()
 
 
+def _birthday_person_name(event):
+    name = _display_event_name(event)
+    if name.endswith("生日") and len(name) > 2:
+        return name[:-2].strip() or name
+    return name
+
+
+def _join_display_names(names):
+    cleaned = [str(name).strip() for name in names if str(name).strip()]
+    return "、".join(cleaned)
+
+
+def _countdown_group_key(event):
+    return (
+        bool(event.get("birthday")),
+        event["event_date"].isoformat(),
+        _date_label(event),
+    )
+
+
+def _group_countdown_rows(rows):
+    groups = {}
+    for diff, event_date, event in rows:
+        key = _countdown_group_key(event)
+        if key not in groups:
+            groups[key] = {
+                "diff": diff,
+                "event_date": event_date,
+                "birthday": bool(event.get("birthday")),
+                "events": [],
+            }
+        groups[key]["events"].append(event)
+    return sorted(
+        groups.values(),
+        key=lambda item: (item["diff"] < 0, item["diff"], item["event_date"]),
+    )
+
+
+def _all_countdown_groups(events=None):
+    events = events if events is not None else _parse_countdown_events()
+    birthday_rows = []
+    date_rows = []
+    today = now_bjt().date()
+    for event in events:
+        event_date = event["event_date"]
+        diff = (event_date - today).days
+        row = (diff, event_date, event)
+        if event.get("birthday"):
+            birthday_rows.append(row)
+        else:
+            date_rows.append(row)
+    return _group_countdown_rows(birthday_rows) + _group_countdown_rows(date_rows)
+
+
+def _format_birthday_group(events, diff):
+    if len(events) == 1:
+        return _format_birthday_line(events[0], diff)
+
+    ages = [_birthday_age(event) for event in events]
+    if ages and all(age is not None and age == ages[0] for age in ages):
+        title = f"{_join_display_names(_birthday_person_name(event) for event in events)}生日"
+        age_text = f"，{ages[0]} 岁"
+    else:
+        name_parts = []
+        for event, age in zip(events, ages):
+            person = _birthday_person_name(event)
+            name_parts.append(f"{person}({age}岁)" if age is not None else person)
+        title = f"{_join_display_names(name_parts)}生日"
+        age_text = ""
+
+    return f"🎂 {title}：{_date_label(events[0])}{age_text}，{_short_distance_text(diff)}"
+
+
+def _format_date_group(events, diff):
+    if len(events) == 1:
+        return _format_date_line(events[0], diff)
+
+    title = _join_display_names(_display_event_name(event) for event in events)
+    if diff < 0:
+        return f"📅 {title}：{_date_label(events[0])}，已过去 {abs(diff)} 天"
+    return f"📅 {title}：{_date_label(events[0])}，{_short_distance_text(diff)}"
+
+
+def _format_countdown_group(group):
+    if group.get("birthday"):
+        return _format_birthday_group(group["events"], group["diff"])
+    return _format_date_group(group["events"], group["diff"])
+
+
+def _important_day_milestones():
+    raw = (
+        env_text("IMPORTANT_DAY_REMINDER_DAYS")
+        or env_text("IMPORTANT_DAY_DAYS")
+        or "30,7,3,1,0"
+    )
+    days = []
+    for part in re.split(r"[,，;；\s]+", raw):
+        if not part:
+            continue
+        try:
+            days.append(int(part))
+        except Exception:
+            log(f"⚠️ 忽略无效重要日提醒节点: {part}")
+    return set(days or [30, 7, 3, 1, 0])
+
+
+def _important_day_group_key(group):
+    parts = [
+        str(group["diff"]),
+        group["event_date"].isoformat(),
+        _date_label(group["events"][0]),
+    ]
+    parts.extend(_display_event_name(event) for event in group["events"])
+    raw = "|".join(parts)
+    return hashlib.md5(raw.encode("utf-8")).hexdigest()[:16]
+
+
+def _important_day_already_alerted(data, group):
+    key = _important_day_group_key(group)
+    return data.get("important_day_alerts", {}).get(key) == now_bjt().strftime("%Y-%m-%d")
+
+
+def _mark_important_day_alerted(data, group):
+    if "important_day_alerts" not in data:
+        data["important_day_alerts"] = {}
+    data["important_day_alerts"][_important_day_group_key(group)] = now_bjt().strftime("%Y-%m-%d")
+
+
+def _important_day_action(group):
+    diff = group["diff"]
+    if group.get("birthday"):
+        if diff == 0:
+            return "🎁 今天记得送祝福，能见面就安排一个小仪式。"
+        if diff == 1:
+            return "🎁 明天就是，礼物、订餐、祝福文案今天准备好。"
+        if diff <= 7:
+            return "🎁 这周快到了，可以开始准备礼物或安排时间。"
+        return "🎁 提前记一下，适合开始想礼物和行程。"
+
+    if diff == 0:
+        return "✅ 今天处理，别拖到晚上。"
+    if diff == 1:
+        return "✅ 明天就到，今天先确认材料和入口。"
+    if diff <= 7:
+        return "✅ 这周快到了，提前安排更稳。"
+    return "✅ 先放进计划里，临近前再确认一次。"
+
+
+def _important_day_level(min_diff):
+    if min_diff <= 1:
+        return env_text("IMPORTANT_DAY_BARK_LEVEL_URGENT", "timeSensitive")
+    if min_diff <= 7:
+        return env_text("IMPORTANT_DAY_BARK_LEVEL_SOON", "active")
+    return env_text("IMPORTANT_DAY_BARK_LEVEL_EARLY", "passive")
+
+
+def _important_day_sound(min_diff):
+    if min_diff <= 1:
+        return env_text("IMPORTANT_DAY_BARK_SOUND_URGENT", "alarm")
+    if min_diff <= 7:
+        return env_text("IMPORTANT_DAY_BARK_SOUND_SOON", "bell")
+    return env_text("IMPORTANT_DAY_BARK_SOUND_EARLY", "birdsong")
+
+
+def _build_important_day_message(groups):
+    groups = sorted(groups, key=lambda item: (item["diff"], item["event_date"]))
+    lines = ["🎯 智能重要日提醒"]
+    for group in groups:
+        lines.append("")
+        lines.append(_format_countdown_group(group))
+        lines.append(_important_day_action(group))
+    return "\n".join(lines)
+
+
+def _important_day_title(groups):
+    min_diff = min(group["diff"] for group in groups)
+    if min_diff == 0:
+        return "重要日提醒: 今天"
+    if min_diff == 1:
+        return "重要日提醒: 明天"
+    return f"重要日提醒: 还有 {min_diff} 天"
+
+
 def _format_birthday_line(event, diff):
     age = _birthday_age(event)
     age_text = f"，{age} 岁" if age is not None else ""
@@ -1724,30 +1916,31 @@ def get_countdown():
         date_rows.append((diff, event["event_date"], event))
 
     lines = []
-    if birthday_rows:
-        birthday_rows.sort(key=lambda item: (item[0] < 0, item[0], item[1]))
+    birthday_groups = _group_countdown_rows(birthday_rows)
+    date_groups = _group_countdown_rows(date_rows)
+
+    if birthday_groups:
         lines.append("🎂 生日提醒:")
         birthday_limit = env_int("COUNTDOWN_BIRTHDAY_LIMIT", 3) or 3
         birthday_limit = max(1, birthday_limit)
-        for diff, _, event in birthday_rows[:birthday_limit]:
-            lines.append(f"  {_format_birthday_line(event, diff)}")
-        hidden = len(birthday_rows) - birthday_limit
+        for group in birthday_groups[:birthday_limit]:
+            lines.append(f"  {_format_birthday_group(group['events'], group['diff'])}")
+        hidden = len(birthday_groups) - birthday_limit
         if hidden > 0:
-            nearest_diff = birthday_rows[birthday_limit][0]
-            lines.append(f"  ... 还有 {hidden} 个生日已收起，最近一个{_short_distance_text(nearest_diff)}")
+            nearest_diff = birthday_groups[birthday_limit]["diff"]
+            lines.append(f"  ... 还有 {hidden} 组生日已收起，最近一组{_short_distance_text(nearest_diff)}")
 
-    if date_rows:
-        date_rows.sort(key=lambda item: (item[0] < 0, item[0], item[1]))
+    if date_groups:
         if lines:
             lines.append("")
         lines.append("📅 重要日期:")
         date_limit = env_int("COUNTDOWN_DATE_LIMIT", 5) or 5
         date_limit = max(1, date_limit)
-        for diff, _, event in date_rows[:date_limit]:
-            lines.append(f"  {_format_date_line(event, diff)}")
-        hidden = len(date_rows) - date_limit
+        for group in date_groups[:date_limit]:
+            lines.append(f"  {_format_date_group(group['events'], group['diff'])}")
+        hidden = len(date_groups) - date_limit
         if hidden > 0:
-            lines.append(f"  ... 还有 {hidden} 个日期已收起")
+            lines.append(f"  ... 还有 {hidden} 组日期已收起")
 
     if lines:
         return "🗓 倒数日:\n" + "\n".join(lines)
@@ -2548,6 +2741,72 @@ def send_exchange_alerts(data, account_events):
 
     if sent:
         log(f"🎁 已发送 {sent} 条兑换提醒")
+
+def send_important_day_reminders():
+    """Send standalone Bark reminders for important countdown milestones."""
+    log("🎯 智能重要日提醒开始...")
+    bark_key = os.environ.get("BARK_KEY")
+    data = load_data()
+    milestones = _important_day_milestones()
+    force = env_flag("IMPORTANT_DAY_FORCE", False)
+    events = _parse_countdown_events()
+    groups = _all_countdown_groups(events)
+
+    log("🔎 重要日提醒参数:")
+    log(f"   当前北京时间: {now_bjt().strftime('%Y-%m-%d %H:%M:%S')}")
+    log(f"   COUNTDOWN_EVENTS 数量: {len(events)}")
+    log(f"   IMPORTANT_DAY_REMINDER_DAYS: {','.join(str(day) for day in sorted(milestones, reverse=True))}")
+    log(f"   IMPORTANT_DAY_FORCE: {force}")
+    log(f"   合并后事件组数: {len(groups)}")
+
+    if not groups:
+        log("⏭️ 没有配置可提醒的重要日")
+        return False
+
+    candidates = []
+    for group in groups:
+        line = _format_countdown_group(group)
+        due = group["diff"] in milestones and group["diff"] >= 0
+        alerted = _important_day_already_alerted(data, group)
+        log(f"   {'✅' if due else '⏭️'} diff={group['diff']} alerted={alerted} | {line}")
+        if group["diff"] < 0:
+            continue
+        if not force and group["diff"] not in milestones:
+            continue
+        if alerted and not force:
+            continue
+        candidates.append(group)
+
+    if not candidates:
+        log("⏭️ 今天没有命中提醒节点，或已经提醒过")
+        return False
+
+    if not bark_key:
+        log("⚠️ 未配置 BARK_KEY，无法发送重要日提醒；本次仅输出核对日志")
+        return False
+
+    title = env_text("IMPORTANT_DAY_TITLE") or _important_day_title(candidates)
+    body = _build_important_day_message(candidates)
+    min_diff = min(group["diff"] for group in candidates)
+    ok = bark_event_push(
+        bark_key,
+        title,
+        body,
+        level=_important_day_level(min_diff),
+        sound=_important_day_sound(min_diff),
+        group_suffix=env_text("IMPORTANT_DAY_GROUP_SUFFIX", "重要日"),
+        url=env_text("IMPORTANT_DAY_BARK_URL", ""),
+        body_limit=env_int("IMPORTANT_DAY_BARK_BODY_LIMIT", 1200) or 1200,
+        copy_limit=env_int("IMPORTANT_DAY_BARK_COPY_LIMIT", 1200) or 1200,
+        default_url="",
+    )
+    if ok:
+        for group in candidates:
+            _mark_important_day_alerted(data, group)
+        save_data(data)
+        log(f"📣 已发送 {len(candidates)} 组重要日提醒")
+    return ok
+
 
 def send_alert(title, content):
     """发送过期/异常告警（仅推送到钉钉和Server酱）"""

@@ -277,8 +277,9 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | `MOOD_NOTE`          | ❌ 否 | 签到日记内容，每次签到时附带的心情记录                                    |
 | `ZODIAC_SIGN`        | ❌ 否 | 星座名称，如 `白羊座`、`天蝎座`。不填则不显示星座运势                    |
 | `COUNTDOWN_EVENTS`   | ❌ 否 | 自定义倒数日，格式: `纪念日:11-18,生日:1995-03-15,农历生日:lunar:1995-08-20`（逗号分隔） |
-| `COUNTDOWN_BIRTHDAY_LIMIT` | ❌ 否 | 倒数日里最多展示几个生日，默认 `3`，其余自动收起。                      |
-| `COUNTDOWN_DATE_LIMIT` | ❌ 否 | 倒数日里最多展示几个普通日期，默认 `5`，其余自动收起。                  |
+| `COUNTDOWN_BIRTHDAY_LIMIT` | ❌ 否 | 倒数日里最多展示几组生日，默认 `3`，同一天生日会先合并再计算。          |
+| `COUNTDOWN_DATE_LIMIT` | ❌ 否 | 倒数日里最多展示几组普通日期，默认 `5`，同一天日期会先合并再计算。      |
+| `IMPORTANT_DAY_REMINDER_DAYS` | ❌ 否 | 智能重要日提醒节点，默认 `30,7,3,1,0`。                               |
 | `MORNING_TODOS` / `DAILY_TODOS` | ❌ 否 | Bark 每日早报里的今日待办，支持换行或分号分隔。                 |
 | `MORNING_REMINDER` / `DAILY_REMINDER` | ❌ 否 | Bark 每日早报里的每日提醒。                              |
 
@@ -478,8 +479,8 @@ else:
 | `MOOD_NOTE`       | 文本               | 空                    | 签到日记内容                 |
 | `ZODIAC_SIGN`     | 星座名称           | `水瓶座`              | 星座运势                     |
 | `COUNTDOWN_EVENTS` | 事件:日期，逗号分隔 | `结婚纪念日:11-18`   | 自定义倒数日；名字包含“生日”会自动计算岁数 |
-| `COUNTDOWN_BIRTHDAY_LIMIT` | 数字 | `3` | 倒数日里最多展示几个生日，其他自动收起 |
-| `COUNTDOWN_DATE_LIMIT` | 数字 | `5` | 倒数日里最多展示几个普通日期，其他自动收起 |
+| `COUNTDOWN_BIRTHDAY_LIMIT` | 数字 | `3` | 倒数日里最多展示几组生日，同一天会先合并 |
+| `COUNTDOWN_DATE_LIMIT` | 数字 | `5` | 倒数日里最多展示几组普通日期，同一天会先合并 |
 | `BARK_GROUP`      | 分组名             | `GLaDOS`              | Bark 通知分组                |
 | `BARK_BADGE_MODE` | `days/success/fail/off` | `days`          | Bark App 角标显示内容        |
 | `BARK_LOW_DAYS`   | 天数               | `7`                   | 剩余天数过低时升级提醒       |
@@ -634,10 +635,11 @@ else:
 | **07:30** | Bark 每日早报 | `{ "ref": "main", "inputs": { "mode": "morning" } }` |
 | **09:30** | GLaDOS 早签到 | `{ "ref": "main", "inputs": { "mode": "checkin" } }` |
 | **09:45** | GLaDOS 早签到心跳 | `{ "ref": "main", "inputs": { "mode": "heartbeat" } }` |
+| **20:30** | Bark 智能重要日提醒 | `{ "ref": "main", "inputs": { "mode": "reminder" } }` |
 | **21:30** | GLaDOS 晚签到 | `{ "ref": "main", "inputs": { "mode": "checkin" } }` |
 | **21:45** | GLaDOS 晚签到心跳 | `{ "ref": "main", "inputs": { "mode": "heartbeat" } }` |
 
-> 💡 `mode=morning` 是独立 Bark 早报，不会读取 `GLADOS_COOKIE`，也不会执行签到。
+> 💡 `mode=morning` 和 `mode=reminder` 都是独立 Bark 任务，不会读取 `GLADOS_COOKIE`，也不会执行签到。
 
 ### 配置步骤
 
@@ -858,6 +860,7 @@ RUN_MODE=morning python3 checkin.py
 | `checkin` | GLaDOS 签到 | 需要 | 会 |
 | `heartbeat` | 签到心跳检查 | 不需要 | 不会 |
 | `morning` | Bark 每日早报 | 不需要 | 不会 |
+| `reminder` | Bark 智能重要日提醒 | 不需要 | 不会 |
 
 推荐在 cron-job.org 里触发 GitHub Actions 时传：
 
@@ -911,10 +914,9 @@ RUN_MODE=morning python3 checkin.py
 
 ```text
 🗓 倒数日:
-🎂 生日提醒:
-  🎂 自己生日：农历2027年2月1日 / 阳历2027-03-08，35 岁，还有 273 天
-  🎂 媳妇生日：农历2027年2月1日 / 阳历2027-03-08，35 岁，还有 273 天
-  ... 还有 2 个生日已收起，最近一个还有 310 天
+  🎂 生日提醒:
+  🎂 自己、媳妇生日：农历2027年2月1日 / 阳历2027-03-08，35 岁，还有 273 天
+  ... 还有 2 组生日已收起，最近一组还有 310 天
 
 📅 重要日期:
   📅 结婚纪念日：11-18，还有 163 天
@@ -922,7 +924,45 @@ RUN_MODE=morning python3 checkin.py
 
 > 💡 农历生日优先使用 `lunar-python` 计算，依赖已写入 `requirements.txt`；GitHub Actions 会自动安装。本地运行前请执行 `pip install -r requirements.txt`。
 
-> 💡 生日太多时默认只展示最近 3 个，可以用 `COUNTDOWN_BIRTHDAY_LIMIT` 调整；普通日期默认最多展示 5 个，可以用 `COUNTDOWN_DATE_LIMIT` 调整。
+> 💡 生日太多时默认只展示最近 3 组，可以用 `COUNTDOWN_BIRTHDAY_LIMIT` 调整；普通日期默认最多展示 5 组，可以用 `COUNTDOWN_DATE_LIMIT` 调整。同一天的生日或普通日期会先合并，再计算展示上限。
+
+### 智能重要日提醒
+
+智能重要日提醒是独立 Bark 任务，只在重要日期命中提醒节点时推送，不会每天刷屏。它复用 `COUNTDOWN_EVENTS`，和每日早报、GLaDOS 签到共用同一份生日/纪念日配置。
+
+cron-job.org 触发 GitHub Actions 时传：
+
+```json
+{"ref":"main","inputs":{"mode":"reminder"}}
+```
+
+推荐时间：每天 **20:30**，Time zone 选择 `Asia/Shanghai`。
+
+默认提醒节点：
+
+```text
+30,7,3,1,0
+```
+
+也就是重要日还有 30 天、7 天、3 天、1 天、当天时才单独推送。可在 GitHub Secrets 里配置：
+
+| 变量 | 说明 |
+|------|------|
+| `IMPORTANT_DAY_REMINDER_DAYS` | 提醒节点，默认 `30,7,3,1,0` |
+| `IMPORTANT_DAY_BARK_URL` | 点击通知打开的 URL，可填备忘录、网页或 Shortcuts URL |
+| `IMPORTANT_DAY_GROUP_SUFFIX` | Bark 分组后缀，默认 `重要日` |
+| `IMPORTANT_DAY_FORCE` | 手动测试用，填 `true` 会忽略节点直接推送，测试后建议删除 |
+
+推送示例：
+
+```text
+🎯 智能重要日提醒
+
+🎂 自己、媳妇生日：农历2027年2月1日 / 阳历2027-03-08，35 岁，还有 273 天
+🎁 提前记一下，适合开始想礼物和行程。
+```
+
+> 💡 倒数日列表会先把同一天的生日合并，例如 `自己农历生日` 和 `媳妇农历生日` 同一天时，会展示为 `自己、媳妇生日`。`COUNTDOWN_BIRTHDAY_LIMIT` 和 `COUNTDOWN_DATE_LIMIT` 现在按合并后的“组数”计算。
 
 ---
 
@@ -1320,9 +1360,10 @@ cookie1&cookie2&cookie3
 
 - ✅ 拆分为标准 Python 包结构，`checkin.py` 保留兼容入口
 - ✅ 新增 `RUN_MODE=morning`，Bark 每日早报与 GLaDOS 签到完全分开
-- ✅ cron-job.org 支持独立触发 `checkin`、`heartbeat`、`morning`
+- ✅ 新增 `RUN_MODE=reminder`，Bark 智能重要日提醒支持 30/7/3/1/0 天节点提醒
+- ✅ cron-job.org 支持独立触发 `checkin`、`heartbeat`、`morning`、`reminder`
 - ✅ README 补充 07:30 早报、09:45/21:45 心跳任务配置
-- ✅ 倒数日支持生日自动计算岁数，农历生日使用 `lunar-python` 自动换算公历日期
+- ✅ 倒数日支持生日自动计算岁数，农历生日使用 `lunar-python` 自动换算公历日期，同一天生日会合并展示
 
 ### v1.5.0 (2026-06-07) 💓 Bark 心跳与兑换提醒
 
