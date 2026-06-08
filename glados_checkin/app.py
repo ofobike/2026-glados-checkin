@@ -342,8 +342,8 @@ def _configured_checkin_times():
     return sorted(times) or [_parse_time_hhmm("09:30"), _parse_time_hhmm("21:30")]
 
 
-def _current_checkin_slot(dt=None):
-    """返回当前时间之前最近的签到 slot。"""
+def _previous_checkin_slot_dt(dt=None):
+    """返回当前时间之前最近的签到 slot 日期时间，供心跳核对使用。"""
     dt = dt or now_bjt()
     times = _configured_checkin_times()
     today_slots = [
@@ -352,13 +352,27 @@ def _current_checkin_slot(dt=None):
     ]
     past = [s for s in today_slots if s <= dt]
     if past:
-        return past[-1].time()
-    return times[-1]
+        return past[-1]
+    return datetime.combine(dt.date() - timedelta(days=1), times[-1], tzinfo=BJT)
+
+
+def _record_checkin_slot_dt(dt=None):
+    """返回签到运行应归属的 slot，避免早于首个 slot 时误归到晚签。"""
+    dt = dt or now_bjt()
+    times = _configured_checkin_times()
+    today_slots = [
+        datetime.combine(dt.date(), t, tzinfo=BJT)
+        for t in times
+    ]
+    past = [s for s in today_slots if s <= dt]
+    if past:
+        return past[-1]
+    return today_slots[0]
 
 
 def _slot_key(dt=None, slot_time=None):
     dt = dt or now_bjt()
-    slot_time = slot_time or _current_checkin_slot(dt)
+    slot_time = slot_time or dt.time()
     return f"{dt.strftime('%Y-%m-%d')} {slot_time.strftime('%H:%M')}"
 
 
@@ -370,7 +384,8 @@ def record_checkin_run(data, email, checkin_ok, message, points=None, days=None)
         data["checkin_runs"][email] = []
 
     now = now_bjt()
-    slot = _slot_key(now)
+    slot_dt = _record_checkin_slot_dt(now)
+    slot = _slot_key(slot_dt, slot_dt.time())
     record = {
         "date": now.strftime('%Y-%m-%d'),
         "slot": slot,
@@ -402,16 +417,35 @@ def _heartbeat_grace_minutes():
 
 def _heartbeat_slot_due(now=None):
     now = now or now_bjt()
-    slot_time = _current_checkin_slot(now)
-    slot_dt = datetime.combine(now.date(), slot_time, tzinfo=BJT)
+    slot_dt = _previous_checkin_slot_dt(now)
+    slot_time = slot_dt.time()
     due_dt = slot_dt + timedelta(minutes=_heartbeat_grace_minutes())
     return slot_time, slot_dt, due_dt, now >= due_dt
+
+
+def _parse_record_time(value):
+    try:
+        return datetime.strptime(str(value), "%Y-%m-%d %H:%M:%S").replace(tzinfo=BJT)
+    except:
+        return None
+
+
+def _record_time_matches_slot(record, slot):
+    record_time = _parse_record_time(record.get("time"))
+    try:
+        slot_dt = datetime.strptime(slot, "%Y-%m-%d %H:%M").replace(tzinfo=BJT)
+    except:
+        return True
+    if not record_time:
+        return True
+    early_limit = slot_dt - timedelta(minutes=60)
+    return record_time >= early_limit
 
 
 def _slot_has_success(data, slot):
     for runs in data.get("checkin_runs", {}).values():
         for r in runs:
-            if r.get("slot") == slot and r.get("ok"):
+            if r.get("slot") == slot and r.get("ok") and _record_time_matches_slot(r, slot):
                 return True
     return False
 
