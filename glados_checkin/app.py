@@ -1664,11 +1664,19 @@ def _lunar_suffix(event):
     if not event.get("lunar"):
         return ""
     leap_text = "闰" if event.get("lunar_leap") else ""
-    solar_text = event["event_date"].strftime("%Y-%m-%d")
+    solar_text = _format_full_cn_date(event["event_date"])
     return (
         f"（农历{event.get('lunar_year')}年{leap_text}"
-        f"{event.get('lunar_month')}月{event.get('lunar_day')}日 / 阳历{solar_text}）"
+        f"{int(event.get('lunar_month')):02d}月{int(event.get('lunar_day')):02d}日 / 阳历{solar_text}）"
     )
+
+
+def _format_full_cn_date(value):
+    return value.strftime("%Y年%m月%d日")
+
+
+def _format_month_day(value):
+    return value.strftime("%m月%d日")
 
 
 def _date_label(event):
@@ -1676,12 +1684,12 @@ def _date_label(event):
         leap_text = "闰" if event.get("lunar_leap") else ""
         return (
             f"农历{event.get('lunar_year')}年{leap_text}"
-            f"{event.get('lunar_month')}月{event.get('lunar_day')}日 / "
-            f"阳历{event['event_date'].strftime('%Y-%m-%d')}"
+            f"{int(event.get('lunar_month')):02d}月{int(event.get('lunar_day')):02d}日 / "
+            f"阳历{_format_full_cn_date(event['event_date'])}"
         )
     if event.get("yearly"):
-        return event["event_date"].strftime("%m-%d")
-    return event["event_date"].strftime("%Y-%m-%d")
+        return _format_month_day(event["event_date"])
+    return _format_full_cn_date(event["event_date"])
 
 
 def _short_distance_text(diff):
