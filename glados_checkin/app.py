@@ -1770,7 +1770,7 @@ def _format_birthday_group(events, diff):
         title = f"{_join_display_names(name_parts)}生日"
         age_text = ""
 
-    return f"🎂 {title}：{_date_label(events[0])}{age_text}，{_short_distance_text(diff)}"
+    return f"{title}：{_date_label(events[0])}{age_text}，{_short_distance_text(diff)}"
 
 
 def _format_date_group(events, diff):
@@ -1779,8 +1779,8 @@ def _format_date_group(events, diff):
 
     title = _join_display_names(_display_event_name(event) for event in events)
     if diff < 0:
-        return f"📅 {title}：{_date_label(events[0])}，已过去 {abs(diff)} 天"
-    return f"📅 {title}：{_date_label(events[0])}，{_short_distance_text(diff)}"
+        return f"{title}：{_date_label(events[0])}，已过去 {abs(diff)} 天"
+    return f"{title}：{_date_label(events[0])}，{_short_distance_text(diff)}"
 
 
 def _format_countdown_group(group):
@@ -1886,13 +1886,13 @@ def _important_day_title(groups):
 def _format_birthday_line(event, diff):
     age = _birthday_age(event)
     age_text = f"，{age} 岁" if age is not None else ""
-    return f"🎂 {_display_event_name(event)}：{_date_label(event)}{age_text}，{_short_distance_text(diff)}"
+    return f"{_display_event_name(event)}：{_date_label(event)}{age_text}，{_short_distance_text(diff)}"
 
 
 def _format_date_line(event, diff):
     if diff < 0:
-        return f"📅 {_display_event_name(event)}：{_date_label(event)}，已过去 {abs(diff)} 天"
-    return f"📅 {_display_event_name(event)}：{_date_label(event)}，{_short_distance_text(diff)}"
+        return f"{_display_event_name(event)}：{_date_label(event)}，已过去 {abs(diff)} 天"
+    return f"{_display_event_name(event)}：{_date_label(event)}，{_short_distance_text(diff)}"
 
 
 def get_countdown():
