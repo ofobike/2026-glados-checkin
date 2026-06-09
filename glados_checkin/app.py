@@ -1569,6 +1569,7 @@ def _parse_countdown_event(name, date_str):
             "yearly": True,
             "birthday": birthday,
             "birth_year": parts["birth_year"] if birthday else None,
+            "birth_month": parts["month"] if birthday and parts["birth_year"] else None,
             "lunar": True,
             "lunar_year": lunar_year,
             "lunar_month": parts["month"],
@@ -1587,6 +1588,7 @@ def _parse_countdown_event(name, date_str):
             "yearly": True,
             "birthday": birthday,
             "birth_year": None,
+            "birth_month": None,
             "lunar": False,
         }
 
@@ -1601,6 +1603,7 @@ def _parse_countdown_event(name, date_str):
             "yearly": True,
             "birthday": True,
             "birth_year": event_date.year,
+            "birth_month": event_date.month,
             "lunar": False,
         }
 
@@ -1610,6 +1613,7 @@ def _parse_countdown_event(name, date_str):
         "yearly": False,
         "birthday": False,
         "birth_year": None,
+        "birth_month": None,
         "lunar": False,
     }
 
@@ -1658,6 +1662,36 @@ def _birthday_age(event):
         return None
     event_year = event.get("lunar_year") if event.get("lunar") else event["event_date"].year
     return max(0, int(event_year) - int(birth_year))
+
+
+def _zodiac_animal(year):
+    if not year:
+        return None
+    animals = ["鼠", "牛", "虎", "兔", "龙", "蛇", "马", "羊", "猴", "鸡", "狗", "猪"]
+    return animals[(int(year) - 4) % 12]
+
+
+def _birth_info_text(event, include_age=False):
+    birth_year = event.get("birth_year")
+    birth_month = event.get("birth_month")
+    if not birth_year or not birth_month:
+        return ""
+
+    parts = [f"出生 {int(birth_year)}年{int(birth_month):02d}月"]
+    animal = _zodiac_animal(birth_year)
+    if animal:
+        parts.append(f"属{animal}")
+    if include_age:
+        age = _birthday_age(event)
+        if age is not None:
+            parts.append(f"{age}岁")
+    return "，".join(parts)
+
+
+def _birthday_tail(event, diff):
+    age = _birthday_age(event)
+    age_text = f"，{age} 岁" if age is not None else ""
+    return f"{_date_label(event)}{age_text}，{_short_distance_text(diff)}"
 
 
 def _lunar_suffix(event):
@@ -1767,18 +1801,25 @@ def _format_birthday_group(events, diff):
         return _format_birthday_line(events[0], diff)
 
     ages = [_birthday_age(event) for event in events]
-    if ages and all(age is not None and age == ages[0] for age in ages):
+    birth_infos = [_birth_info_text(event) for event in events]
+    same_birth_info = bool(birth_infos[0]) and all(info == birth_infos[0] for info in birth_infos)
+    if same_birth_info and ages and all(age is not None and age == ages[0] for age in ages):
         title = f"{_join_display_names(_birthday_person_name(event) for event in events)}生日"
         age_text = f"，{ages[0]} 岁"
+        birth_text = f"{birth_infos[0]}；"
     else:
         name_parts = []
         for event, age in zip(events, ages):
             person = _birthday_person_name(event)
-            name_parts.append(f"{person}({age}岁)" if age is not None else person)
+            details = _birth_info_text(event, include_age=True)
+            if not details and age is not None:
+                details = f"{age}岁"
+            name_parts.append(f"{person}({details})" if details else person)
         title = f"{_join_display_names(name_parts)}生日"
         age_text = ""
+        birth_text = ""
 
-    return f"{title}：{_date_label(events[0])}{age_text}，{_short_distance_text(diff)}"
+    return f"{title}：{birth_text}{_date_label(events[0])}{age_text}，{_short_distance_text(diff)}"
 
 
 def _format_date_group(events, diff):
@@ -1892,9 +1933,9 @@ def _important_day_title(groups):
 
 
 def _format_birthday_line(event, diff):
-    age = _birthday_age(event)
-    age_text = f"，{age} 岁" if age is not None else ""
-    return f"{_display_event_name(event)}：{_date_label(event)}{age_text}，{_short_distance_text(diff)}"
+    birth_text = _birth_info_text(event)
+    prefix = f"{birth_text}；" if birth_text else ""
+    return f"{_display_event_name(event)}：{prefix}{_birthday_tail(event, diff)}"
 
 
 def _format_date_line(event, diff):
