@@ -28,6 +28,18 @@ on:
         description: '是否忽略去重直接发送：true/false'
         required: false
         default: ''
+      shortcut_name:
+        description: 'iOS 快捷指令名称，可选'
+        required: false
+        default: ''
+      shortcut_input:
+        description: 'iOS 快捷指令 input 参数，可选，如 text'
+        required: false
+        default: ''
+      shortcut_text:
+        description: 'iOS 快捷指令 text 参数，可选'
+        required: false
+        default: ''
 
 permissions:
   actions: read
@@ -105,10 +117,16 @@ jobs:
           HEARTBEAT_BARK_LEVEL: ${{ secrets.HEARTBEAT_BARK_LEVEL }}
           HEARTBEAT_BARK_SOUND: ${{ secrets.HEARTBEAT_BARK_SOUND }}
           HEARTBEAT_BARK_URL: ${{ secrets.HEARTBEAT_BARK_URL }}
+          HEARTBEAT_SHORTCUT_NAME: ${{ github.event.inputs.shortcut_name || secrets.HEARTBEAT_SHORTCUT_NAME }}
+          HEARTBEAT_SHORTCUT_INPUT: ${{ github.event.inputs.shortcut_input || secrets.HEARTBEAT_SHORTCUT_INPUT }}
+          HEARTBEAT_SHORTCUT_TEXT: ${{ github.event.inputs.shortcut_text || secrets.HEARTBEAT_SHORTCUT_TEXT }}
           EXCHANGE_ALERT_ENABLED: ${{ secrets.EXCHANGE_ALERT_ENABLED }}
           EXCHANGE_BARK_LEVEL: ${{ secrets.EXCHANGE_BARK_LEVEL }}
           EXCHANGE_BARK_SOUND: ${{ secrets.EXCHANGE_BARK_SOUND }}
           EXCHANGE_BARK_URL: ${{ secrets.EXCHANGE_BARK_URL }}
+          EXCHANGE_SHORTCUT_NAME: ${{ github.event.inputs.shortcut_name || secrets.EXCHANGE_SHORTCUT_NAME }}
+          EXCHANGE_SHORTCUT_INPUT: ${{ github.event.inputs.shortcut_input || secrets.EXCHANGE_SHORTCUT_INPUT }}
+          EXCHANGE_SHORTCUT_TEXT: ${{ github.event.inputs.shortcut_text || secrets.EXCHANGE_SHORTCUT_TEXT }}
           PUSH_LEVEL: ${{ secrets.PUSH_LEVEL }}
           WEATHER_CITY: ${{ secrets.WEATHER_CITY }}
           CHECKIN_HOURS: ${{ secrets.CHECKIN_HOURS }}
@@ -126,6 +144,9 @@ jobs:
           MORNING_BARK_LEVEL: ${{ secrets.MORNING_BARK_LEVEL }}
           MORNING_BARK_SOUND: ${{ secrets.MORNING_BARK_SOUND }}
           MORNING_BARK_URL: ${{ secrets.MORNING_BARK_URL }}
+          MORNING_SHORTCUT_NAME: ${{ github.event.inputs.shortcut_name || secrets.MORNING_SHORTCUT_NAME }}
+          MORNING_SHORTCUT_INPUT: ${{ github.event.inputs.shortcut_input || secrets.MORNING_SHORTCUT_INPUT }}
+          MORNING_SHORTCUT_TEXT: ${{ github.event.inputs.shortcut_text || secrets.MORNING_SHORTCUT_TEXT }}
           MORNING_GROUP_SUFFIX: ${{ secrets.MORNING_GROUP_SUFFIX }}
           MORNING_BARK_BODY_LIMIT: ${{ secrets.MORNING_BARK_BODY_LIMIT }}
           MORNING_BARK_COPY_LIMIT: ${{ secrets.MORNING_BARK_COPY_LIMIT }}
@@ -133,6 +154,9 @@ jobs:
           IMPORTANT_DAY_FORCE: ${{ secrets.IMPORTANT_DAY_FORCE }}
           IMPORTANT_DAY_TITLE: ${{ secrets.IMPORTANT_DAY_TITLE }}
           IMPORTANT_DAY_BARK_URL: ${{ secrets.IMPORTANT_DAY_BARK_URL }}
+          IMPORTANT_DAY_SHORTCUT_NAME: ${{ github.event.inputs.shortcut_name || secrets.IMPORTANT_DAY_SHORTCUT_NAME }}
+          IMPORTANT_DAY_SHORTCUT_INPUT: ${{ github.event.inputs.shortcut_input || secrets.IMPORTANT_DAY_SHORTCUT_INPUT }}
+          IMPORTANT_DAY_SHORTCUT_TEXT: ${{ github.event.inputs.shortcut_text || secrets.IMPORTANT_DAY_SHORTCUT_TEXT }}
           IMPORTANT_DAY_GROUP_SUFFIX: ${{ secrets.IMPORTANT_DAY_GROUP_SUFFIX }}
           IMPORTANT_DAY_BARK_BODY_LIMIT: ${{ secrets.IMPORTANT_DAY_BARK_BODY_LIMIT }}
           IMPORTANT_DAY_BARK_COPY_LIMIT: ${{ secrets.IMPORTANT_DAY_BARK_COPY_LIMIT }}
@@ -150,6 +174,9 @@ jobs:
           ACTIONS_MONITOR_FORCE: ${{ secrets.ACTIONS_MONITOR_FORCE }}
           ACTIONS_MONITOR_GROUP_SUFFIX: ${{ secrets.ACTIONS_MONITOR_GROUP_SUFFIX }}
           ACTIONS_MONITOR_BARK_URL: ${{ secrets.ACTIONS_MONITOR_BARK_URL }}
+          ACTIONS_MONITOR_SHORTCUT_NAME: ${{ github.event.inputs.shortcut_name || secrets.ACTIONS_MONITOR_SHORTCUT_NAME }}
+          ACTIONS_MONITOR_SHORTCUT_INPUT: ${{ github.event.inputs.shortcut_input || secrets.ACTIONS_MONITOR_SHORTCUT_INPUT }}
+          ACTIONS_MONITOR_SHORTCUT_TEXT: ${{ github.event.inputs.shortcut_text || secrets.ACTIONS_MONITOR_SHORTCUT_TEXT }}
           ACTIONS_MONITOR_BARK_BODY_LIMIT: ${{ secrets.ACTIONS_MONITOR_BARK_BODY_LIMIT }}
           ACTIONS_MONITOR_BARK_COPY_LIMIT: ${{ secrets.ACTIONS_MONITOR_BARK_COPY_LIMIT }}
           ACTIONS_MONITOR_LEVEL_SUCCESS: ${{ secrets.ACTIONS_MONITOR_LEVEL_SUCCESS }}
@@ -165,6 +192,9 @@ jobs:
           HABIT_TITLE: ${{ github.event.inputs.habit_title || secrets.HABIT_TITLE }}
           HABIT_MESSAGE: ${{ github.event.inputs.habit_message || secrets.HABIT_MESSAGE }}
           HABIT_BARK_URL: ${{ github.event.inputs.habit_url || secrets.HABIT_BARK_URL }}
+          HABIT_SHORTCUT_NAME: ${{ github.event.inputs.shortcut_name || secrets.HABIT_SHORTCUT_NAME }}
+          HABIT_SHORTCUT_INPUT: ${{ github.event.inputs.shortcut_input || secrets.HABIT_SHORTCUT_INPUT }}
+          HABIT_SHORTCUT_TEXT: ${{ github.event.inputs.shortcut_text || secrets.HABIT_SHORTCUT_TEXT }}
           HABIT_FORCE: ${{ github.event.inputs.habit_force || secrets.HABIT_FORCE }}
           HABIT_BARK_LEVEL: ${{ secrets.HABIT_BARK_LEVEL }}
           HABIT_BARK_SOUND: ${{ secrets.HABIT_BARK_SOUND }}
@@ -225,10 +255,16 @@ jobs:
           HEARTBEAT_BARK_LEVEL: ${{ secrets.HEARTBEAT_BARK_LEVEL }}
           HEARTBEAT_BARK_SOUND: ${{ secrets.HEARTBEAT_BARK_SOUND }}
           HEARTBEAT_BARK_URL: ${{ secrets.HEARTBEAT_BARK_URL }}
+          HEARTBEAT_SHORTCUT_NAME: ${{ github.event.inputs.shortcut_name || secrets.HEARTBEAT_SHORTCUT_NAME }}
+          HEARTBEAT_SHORTCUT_INPUT: ${{ github.event.inputs.shortcut_input || secrets.HEARTBEAT_SHORTCUT_INPUT }}
+          HEARTBEAT_SHORTCUT_TEXT: ${{ github.event.inputs.shortcut_text || secrets.HEARTBEAT_SHORTCUT_TEXT }}
           EXCHANGE_ALERT_ENABLED: ${{ secrets.EXCHANGE_ALERT_ENABLED }}
           EXCHANGE_BARK_LEVEL: ${{ secrets.EXCHANGE_BARK_LEVEL }}
           EXCHANGE_BARK_SOUND: ${{ secrets.EXCHANGE_BARK_SOUND }}
           EXCHANGE_BARK_URL: ${{ secrets.EXCHANGE_BARK_URL }}
+          EXCHANGE_SHORTCUT_NAME: ${{ github.event.inputs.shortcut_name || secrets.EXCHANGE_SHORTCUT_NAME }}
+          EXCHANGE_SHORTCUT_INPUT: ${{ github.event.inputs.shortcut_input || secrets.EXCHANGE_SHORTCUT_INPUT }}
+          EXCHANGE_SHORTCUT_TEXT: ${{ github.event.inputs.shortcut_text || secrets.EXCHANGE_SHORTCUT_TEXT }}
           PUSH_LEVEL: ${{ secrets.PUSH_LEVEL }}
           WEATHER_CITY: ${{ secrets.WEATHER_CITY }}
           CHECKIN_HOURS: ${{ secrets.CHECKIN_HOURS }}
@@ -246,6 +282,9 @@ jobs:
           MORNING_BARK_LEVEL: ${{ secrets.MORNING_BARK_LEVEL }}
           MORNING_BARK_SOUND: ${{ secrets.MORNING_BARK_SOUND }}
           MORNING_BARK_URL: ${{ secrets.MORNING_BARK_URL }}
+          MORNING_SHORTCUT_NAME: ${{ github.event.inputs.shortcut_name || secrets.MORNING_SHORTCUT_NAME }}
+          MORNING_SHORTCUT_INPUT: ${{ github.event.inputs.shortcut_input || secrets.MORNING_SHORTCUT_INPUT }}
+          MORNING_SHORTCUT_TEXT: ${{ github.event.inputs.shortcut_text || secrets.MORNING_SHORTCUT_TEXT }}
           MORNING_GROUP_SUFFIX: ${{ secrets.MORNING_GROUP_SUFFIX }}
           MORNING_BARK_BODY_LIMIT: ${{ secrets.MORNING_BARK_BODY_LIMIT }}
           MORNING_BARK_COPY_LIMIT: ${{ secrets.MORNING_BARK_COPY_LIMIT }}
@@ -253,6 +292,9 @@ jobs:
           IMPORTANT_DAY_FORCE: ${{ secrets.IMPORTANT_DAY_FORCE }}
           IMPORTANT_DAY_TITLE: ${{ secrets.IMPORTANT_DAY_TITLE }}
           IMPORTANT_DAY_BARK_URL: ${{ secrets.IMPORTANT_DAY_BARK_URL }}
+          IMPORTANT_DAY_SHORTCUT_NAME: ${{ github.event.inputs.shortcut_name || secrets.IMPORTANT_DAY_SHORTCUT_NAME }}
+          IMPORTANT_DAY_SHORTCUT_INPUT: ${{ github.event.inputs.shortcut_input || secrets.IMPORTANT_DAY_SHORTCUT_INPUT }}
+          IMPORTANT_DAY_SHORTCUT_TEXT: ${{ github.event.inputs.shortcut_text || secrets.IMPORTANT_DAY_SHORTCUT_TEXT }}
           IMPORTANT_DAY_GROUP_SUFFIX: ${{ secrets.IMPORTANT_DAY_GROUP_SUFFIX }}
           IMPORTANT_DAY_BARK_BODY_LIMIT: ${{ secrets.IMPORTANT_DAY_BARK_BODY_LIMIT }}
           IMPORTANT_DAY_BARK_COPY_LIMIT: ${{ secrets.IMPORTANT_DAY_BARK_COPY_LIMIT }}
@@ -270,6 +312,9 @@ jobs:
           ACTIONS_MONITOR_FORCE: ${{ secrets.ACTIONS_MONITOR_FORCE }}
           ACTIONS_MONITOR_GROUP_SUFFIX: ${{ secrets.ACTIONS_MONITOR_GROUP_SUFFIX }}
           ACTIONS_MONITOR_BARK_URL: ${{ secrets.ACTIONS_MONITOR_BARK_URL }}
+          ACTIONS_MONITOR_SHORTCUT_NAME: ${{ github.event.inputs.shortcut_name || secrets.ACTIONS_MONITOR_SHORTCUT_NAME }}
+          ACTIONS_MONITOR_SHORTCUT_INPUT: ${{ github.event.inputs.shortcut_input || secrets.ACTIONS_MONITOR_SHORTCUT_INPUT }}
+          ACTIONS_MONITOR_SHORTCUT_TEXT: ${{ github.event.inputs.shortcut_text || secrets.ACTIONS_MONITOR_SHORTCUT_TEXT }}
           ACTIONS_MONITOR_BARK_BODY_LIMIT: ${{ secrets.ACTIONS_MONITOR_BARK_BODY_LIMIT }}
           ACTIONS_MONITOR_BARK_COPY_LIMIT: ${{ secrets.ACTIONS_MONITOR_BARK_COPY_LIMIT }}
           ACTIONS_MONITOR_LEVEL_SUCCESS: ${{ secrets.ACTIONS_MONITOR_LEVEL_SUCCESS }}
@@ -285,6 +330,9 @@ jobs:
           HABIT_TITLE: ${{ github.event.inputs.habit_title || secrets.HABIT_TITLE }}
           HABIT_MESSAGE: ${{ github.event.inputs.habit_message || secrets.HABIT_MESSAGE }}
           HABIT_BARK_URL: ${{ github.event.inputs.habit_url || secrets.HABIT_BARK_URL }}
+          HABIT_SHORTCUT_NAME: ${{ github.event.inputs.shortcut_name || secrets.HABIT_SHORTCUT_NAME }}
+          HABIT_SHORTCUT_INPUT: ${{ github.event.inputs.shortcut_input || secrets.HABIT_SHORTCUT_INPUT }}
+          HABIT_SHORTCUT_TEXT: ${{ github.event.inputs.shortcut_text || secrets.HABIT_SHORTCUT_TEXT }}
           HABIT_FORCE: ${{ github.event.inputs.habit_force || secrets.HABIT_FORCE }}
           HABIT_BARK_LEVEL: ${{ secrets.HABIT_BARK_LEVEL }}
           HABIT_BARK_SOUND: ${{ secrets.HABIT_BARK_SOUND }}

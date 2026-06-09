@@ -38,6 +38,7 @@ from glados_checkin.lunar import (
 )
 from glados_checkin.notifiers import dingtalk, pushplus_push, serverchan, telegram_push
 from glados_checkin.paths import DATA_FILE, EXPORT_FILE
+from glados_checkin.shortcuts import bark_url_or_shortcut
 from glados_checkin.utils import BJT, log, mask_email, now_bjt
 
 # ================= 配置 =================
@@ -2721,7 +2722,7 @@ def send_heartbeat_check():
         level=env_text("HEARTBEAT_BARK_LEVEL", "timeSensitive"),
         sound=env_text("HEARTBEAT_BARK_SOUND", "alarm"),
         group_suffix="心跳",
-        url=env_text("HEARTBEAT_BARK_URL", github_actions_url()),
+        url=bark_url_or_shortcut("HEARTBEAT_BARK_URL", "HEARTBEAT", github_actions_url()),
     )
     if ok:
         _mark_heartbeat_alerted(data, slot)
@@ -3076,7 +3077,11 @@ def send_actions_monitor():
         level=_actions_monitor_level(run, failure_streak=failure_streak),
         sound=_actions_monitor_sound(run, failure_streak=failure_streak),
         group_suffix=env_text("ACTIONS_MONITOR_GROUP_SUFFIX", "Actions"),
-        url=env_text("ACTIONS_MONITOR_BARK_URL") or _actions_run_url(run, repo=repo),
+        url=bark_url_or_shortcut(
+            "ACTIONS_MONITOR_BARK_URL",
+            "ACTIONS_MONITOR",
+            _actions_run_url(run, repo=repo),
+        ),
         body_limit=env_int("ACTIONS_MONITOR_BARK_BODY_LIMIT", 1200) or 1200,
         copy_limit=env_int("ACTIONS_MONITOR_BARK_COPY_LIMIT", 1200) or 1200,
         default_url=_actions_run_url(run, repo=repo),
@@ -3145,7 +3150,11 @@ def send_exchange_alerts(data, account_events):
                 level=env_text("EXCHANGE_BARK_LEVEL", "timeSensitive"),
                 sound=env_text("EXCHANGE_BARK_SOUND", "bell"),
                 group_suffix="兑换",
-                url=env_text("EXCHANGE_BARK_URL", "https://glados.cloud/console/checkin"),
+                url=bark_url_or_shortcut(
+                    "EXCHANGE_BARK_URL",
+                    "EXCHANGE",
+                    "https://glados.cloud/console/checkin",
+                ),
             )
             if ok:
                 data["exchange_alerts"][key] = now_bjt().strftime('%Y-%m-%d %H:%M:%S')
@@ -3207,7 +3216,7 @@ def send_important_day_reminders():
         level=_important_day_level(min_diff),
         sound=_important_day_sound(min_diff),
         group_suffix=env_text("IMPORTANT_DAY_GROUP_SUFFIX", "重要日"),
-        url=env_text("IMPORTANT_DAY_BARK_URL", ""),
+        url=bark_url_or_shortcut("IMPORTANT_DAY_BARK_URL", "IMPORTANT_DAY"),
         body_limit=env_int("IMPORTANT_DAY_BARK_BODY_LIMIT", 1200) or 1200,
         copy_limit=env_int("IMPORTANT_DAY_BARK_COPY_LIMIT", 1200) or 1200,
         default_url="",

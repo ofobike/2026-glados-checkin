@@ -69,6 +69,7 @@
 - [💻 本地/独立服务器部署](#-本地独立服务器部署教程)
 - [🌅 Bark 独立每日早报](#-bark-独立每日早报)
 - [🌱 Bark 习惯提醒](#-bark-习惯提醒)
+- [📲 iOS 快捷指令联动](#-ios-快捷指令联动)
 - [❄️ NixOS 服务配置](#️-nixos-服务配置)
 - [📊 推送效果预览](#-推送效果预览)
 - [❓ 常见问题](#-常见问题)
@@ -286,6 +287,9 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | `HABIT_TYPE` | ❌ 否 | Bark 习惯提醒类型，支持 `water`、`stand`、`study`、`exercise`、`sleep`、`medicine`、`eye`、`random`。 |
 | `HABIT_DEDUPE_MINUTES` | ❌ 否 | 习惯提醒去重窗口，默认 `20` 分钟。                                    |
 | `HABIT_RANDOM_TASKS` | ❌ 否 | 随机小任务列表，支持换行或分号分隔。                                  |
+| `*_SHORTCUT_NAME` | ❌ 否 | Bark 通知点击后运行 iOS 快捷指令，例如 `HABIT_SHORTCUT_NAME=学习专注`。 |
+| `*_SHORTCUT_INPUT` | ❌ 否 | 快捷指令 input 参数，例如 `text`。                                    |
+| `*_SHORTCUT_TEXT` | ❌ 否 | 传给快捷指令的文本内容。                                               |
 
 > 💡 **推送渠道可自由组合**：你可以同时配置多个推送渠道，签到结果会同时推送到所有已配置的渠道。详见 [推送渠道说明](#-推送渠道说明)。
 
@@ -949,7 +953,7 @@ cron-job.org 触发 GitHub Actions 时传：
 | `habit_type` / `HABIT_TYPE` | 提醒类型：`water`、`stand`、`study`、`exercise`、`sleep`、`medicine`、`eye`、`random` |
 | `habit_title` / `HABIT_TITLE` | 自定义标题 |
 | `habit_message` / `HABIT_MESSAGE` | 自定义正文 |
-| `habit_url` / `HABIT_BARK_URL` | 点击通知打开的 URL，可填网页或 `shortcuts://` |
+| `habit_url` / `HABIT_BARK_URL` | 点击通知打开的 URL，可填网页或 `shortcuts://`；只想运行快捷指令时也可以用 `shortcut_name` |
 | `HABIT_BARK_LEVEL` | Bark 级别，默认按类型决定 |
 | `HABIT_BARK_SOUND` | Bark 铃声，默认按类型决定 |
 | `HABIT_GROUP_SUFFIX` | Bark 分组后缀，默认 `习惯` |
@@ -958,6 +962,62 @@ cron-job.org 触发 GitHub Actions 时传：
 | `HABIT_RANDOM_TASKS` | 随机小任务列表，支持换行或分号分隔 |
 
 > 💡 如果你要在 cron-job.org 配多个习惯提醒，推荐每个任务都在 Raw Body 里写 `habit_type`，不要只靠 GitHub Secrets 里的 `HABIT_TYPE`，这样每个任务可以各发各的提醒。
+
+### iOS 快捷指令联动
+
+Bark 通知可以点击打开 URL。本项目现在支持用 `*_SHORTCUT_NAME` 自动生成 `shortcuts://run-shortcut?...`，不用手写很长的 Shortcuts URL。
+
+优先级规则：
+
+```text
+显式 *_BARK_URL > 自动生成 shortcuts:// > 默认 URL
+```
+
+也就是说，如果你已经配置了 `HABIT_BARK_URL`、`IMPORTANT_DAY_BARK_URL` 这类 URL，原来的行为不会变；只有没写 URL 时，才会用快捷指令名称自动生成跳转。
+
+cron-job.org Raw Body 示例：
+
+```json
+{
+  "ref": "main",
+  "inputs": {
+    "mode": "habit",
+    "habit_type": "study",
+    "habit_title": "学习提醒",
+    "habit_message": "开始 25 分钟专注学习。",
+    "shortcut_name": "学习专注",
+    "shortcut_input": "text",
+    "shortcut_text": "开始 25 分钟专注学习。"
+  }
+}
+```
+
+如果你想在 GitHub Secrets 里长期配置，也可以这样填：
+
+| 场景 | Secret 示例 |
+|------|-------------|
+| 习惯提醒 | `HABIT_SHORTCUT_NAME=学习专注` |
+| 每日早报 | `MORNING_SHORTCUT_NAME=打开今日计划` |
+| 重要日提醒 | `IMPORTANT_DAY_SHORTCUT_NAME=打开备忘录` |
+| Actions 监控 | `ACTIONS_MONITOR_SHORTCUT_NAME=打开Actions排查` |
+| 心跳告警 | `HEARTBEAT_SHORTCUT_NAME=检查自动化` |
+| 兑换提醒 | `EXCHANGE_SHORTCUT_NAME=打开GLaDOS积分` |
+
+可选传参：
+
+| 变量 / input | 说明 |
+|--------------|------|
+| `shortcut_name` / `*_SHORTCUT_NAME` | 快捷指令名称 |
+| `shortcut_input` / `*_SHORTCUT_INPUT` | Shortcuts 的 `input` 参数，例如 `text` |
+| `shortcut_text` / `*_SHORTCUT_TEXT` | 传给快捷指令的文本 |
+
+生成效果示例：
+
+```text
+shortcuts://run-shortcut?name=%E5%AD%A6%E4%B9%A0%E4%B8%93%E6%B3%A8&input=text&text=%E5%BC%80%E5%A7%8B+25+%E5%88%86%E9%92%9F%E4%B8%93%E6%B3%A8%E5%AD%A6%E4%B9%A0%E3%80%82
+```
+
+> 💡 不要把私人快捷指令名称写死在代码里。推荐在 cron-job.org 的 Raw Body 或 GitHub Secrets 里配置，这样不同提醒可以打开不同快捷指令。
 
 ### 倒数日和生日配置
 
@@ -1459,6 +1519,7 @@ cookie1&cookie2&cookie3
 | `glados_checkin/cli.py` | 命令行入口和 `RUN_MODE` 分发                |
 | `glados_checkin/morning.py` | Bark 独立每日早报                       |
 | `glados_checkin/habit.py` | Bark 独立习惯提醒                       |
+| `glados_checkin/shortcuts.py` | iOS 快捷指令 URL 模板工具             |
 | `glados_checkin/bark.py` | Bark 推送 payload、分级、角标、跳转、复制 |
 | `glados_checkin/notifiers.py` | PushPlus / Server酱 / 钉钉 / Telegram 发送 |
 | `glados_checkin/renderers.py` | PushPlus / Telegram 消息渲染模块    |
@@ -1487,6 +1548,13 @@ cookie1&cookie2&cookie3
 ---
 
 ## 📝 更新日志
+
+### v1.8.0 (2026-06-09) 📲 iOS 快捷指令联动
+
+- ✅ 新增 `*_SHORTCUT_NAME`，自动生成 `shortcuts://run-shortcut?...`
+- ✅ 支持 `shortcut_name`、`shortcut_input`、`shortcut_text` workflow inputs
+- ✅ 习惯提醒、每日早报、重要日提醒、Actions 监控、心跳告警、兑换提醒均支持快捷指令跳转
+- ✅ 保持 `*_BARK_URL` 优先，不影响已有点击跳转配置
 
 ### v1.7.0 (2026-06-09) 🌱 Bark 习惯提醒
 

@@ -9,6 +9,7 @@ from datetime import datetime
 from .bark import bark_event_push
 from .config import env_flag, env_int, env_text
 from .paths import DATA_FILE
+from .shortcuts import bark_url_or_shortcut
 from .utils import BJT, log, now_bjt
 
 
@@ -258,7 +259,7 @@ def build_habit_notification():
         "body": body,
         "level": env_text("HABIT_BARK_LEVEL", preset["level"]),
         "sound": env_text("HABIT_BARK_SOUND", preset["sound"]),
-        "url": env_text("HABIT_BARK_URL", ""),
+        "url": bark_url_or_shortcut("HABIT_BARK_URL", "HABIT"),
         "group_suffix": env_text("HABIT_GROUP_SUFFIX", "习惯"),
     }
 

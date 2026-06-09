@@ -5,6 +5,7 @@ import re
 
 from .bark import bark_event_push
 from .config import env_int, env_text
+from .shortcuts import bark_url_or_shortcut
 from .utils import log, now_bjt
 
 
@@ -87,7 +88,7 @@ def send_morning_report():
         level=env_text("MORNING_BARK_LEVEL", "active"),
         sound=env_text("MORNING_BARK_SOUND", "birdsong"),
         group_suffix=env_text("MORNING_GROUP_SUFFIX", "早报"),
-        url=env_text("MORNING_BARK_URL", ""),
+        url=bark_url_or_shortcut("MORNING_BARK_URL", "MORNING"),
         copy_text=body,
         body_limit=env_int("MORNING_BARK_BODY_LIMIT", 1200) or 1200,
         copy_limit=env_int("MORNING_BARK_COPY_LIMIT", 1200) or 1200,
