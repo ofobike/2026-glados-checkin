@@ -638,8 +638,9 @@ else:
 | **20:30** | Bark 智能重要日提醒 | `{ "ref": "main", "inputs": { "mode": "reminder" } }` |
 | **21:30** | GLaDOS 晚签到 | `{ "ref": "main", "inputs": { "mode": "checkin" } }` |
 | **21:45** | GLaDOS 晚签到心跳 | `{ "ref": "main", "inputs": { "mode": "heartbeat" } }` |
+| **22:05** | Bark GitHub Actions 监控 | `{ "ref": "main", "inputs": { "mode": "actions_monitor" } }` |
 
-> 💡 `mode=morning` 和 `mode=reminder` 都是独立 Bark 任务，不会读取 `GLADOS_COOKIE`，也不会执行签到。
+> 💡 `mode=morning`、`mode=reminder` 和 `mode=actions_monitor` 都是独立 Bark 任务，不会读取 `GLADOS_COOKIE`，也不会执行签到。
 
 ### 配置步骤
 
@@ -861,6 +862,7 @@ RUN_MODE=morning python3 checkin.py
 | `heartbeat` | 签到心跳检查 | 不需要 | 不会 |
 | `morning` | Bark 每日早报 | 不需要 | 不会 |
 | `reminder` | Bark 智能重要日提醒 | 不需要 | 不会 |
+| `actions_monitor` | Bark GitHub Actions 监控 | 不需要 | 不会 |
 
 推荐在 cron-job.org 里触发 GitHub Actions 时传：
 
@@ -963,6 +965,69 @@ cron-job.org 触发 GitHub Actions 时传：
 ```
 
 > 💡 倒数日列表会先把同一天的生日合并，例如 `自己农历生日` 和 `媳妇农历生日` 同一天时，会展示为 `自己、媳妇生日`。`COUNTDOWN_BIRTHDAY_LIMIT` 和 `COUNTDOWN_DATE_LIMIT` 现在按合并后的“组数”计算。
+
+### GitHub Actions 监控
+
+GitHub Actions 监控是独立 Bark 任务，用来查看最近一次 workflow 运行结果。成功会推送最新一次运行摘要；失败会按连续失败次数升级提醒，并且点击通知直达 Actions 运行页面。
+
+项目 workflow 已设置 `run-name: mode=...`，所以通知里会尽量展示最近一次运行的模式，例如 `checkin`、`morning`、`reminder`。监控任务会跳过 `actions_monitor` 自己，避免“监控自己成功”把真正的签到结果挤掉。
+
+cron-job.org 触发 GitHub Actions 时传：
+
+```json
+{"ref":"main","inputs":{"mode":"actions_monitor"}}
+```
+
+推荐时间：
+
+- 想及时发现失败：每 **1-3 小时** 触发一次，Time zone 选择 `Asia/Shanghai`。
+- 只想看当天汇总：每天 **22:05** 触发一次，放在晚签到和心跳之后。
+
+> 💡 如果只每天触发一次，而失败后又有一次成功运行，监控会看到“最新一次成功”。想尽早抓到失败，就把 Actions 监控任务设成每 1-3 小时一次。
+
+成功推送示例：
+
+```text
+🤖 GitHub Actions 监控
+
+工作流: GLaDOS 2026 Checkin
+状态: 成功
+分支: main
+模式: checkin
+运行号: #123
+开始时间: 2026年06月09日 21:00
+耗时: 1分23秒
+
+✅ 最新一次 workflow 运行成功。
+```
+
+失败策略：
+
+```text
+失败 1 次：active + bell
+连续失败 2 次：timeSensitive
+连续失败 3 次及以上：alarm
+```
+
+可选配置：
+
+| 变量 | 说明 |
+|------|------|
+| `ACTIONS_MONITOR_REPO` | 要监控的仓库，默认当前仓库，例如 `ofobike/2026-glados-checkin` |
+| `ACTIONS_MONITOR_WORKFLOW` | 要监控的 workflow 文件名，默认 `checkin.yml` |
+| `ACTIONS_MONITOR_TOKEN` | 监控其他私有仓库时使用；监控当前仓库通常不用配置 |
+| `ACTIONS_MONITOR_FETCH_LIMIT` | 拉取最近多少条运行记录，默认 `10` |
+| `ACTIONS_MONITOR_FORCE` | 手动测试用，填 `true` 会忽略去重直接推送，测试后建议删除 |
+| `ACTIONS_MONITOR_BARK_URL` | 自定义点击跳转 URL，不填则打开对应 Actions 运行页 |
+| `ACTIONS_MONITOR_GROUP_SUFFIX` | Bark 分组后缀，默认 `Actions` |
+| `ACTIONS_MONITOR_LEVEL_SUCCESS` | 成功通知级别，默认 `active` |
+| `ACTIONS_MONITOR_LEVEL_FAILURE` | 首次失败通知级别，默认 `active` |
+| `ACTIONS_MONITOR_LEVEL_FAILURE_REPEAT` | 连续失败通知级别，默认 `timeSensitive` |
+| `ACTIONS_MONITOR_SOUND_SUCCESS` | 成功通知铃声，默认 `birdsong` |
+| `ACTIONS_MONITOR_SOUND_FAILURE` | 首次失败铃声，默认 `bell` |
+| `ACTIONS_MONITOR_SOUND_FAILURE_REPEAT` | 连续失败 3 次及以上铃声，默认 `alarm` |
+
+> 💡 同一个 run 默认只提醒一次，避免 cron-job.org 高频触发时重复刷屏。
 
 ---
 
@@ -1361,7 +1426,8 @@ cookie1&cookie2&cookie3
 - ✅ 拆分为标准 Python 包结构，`checkin.py` 保留兼容入口
 - ✅ 新增 `RUN_MODE=morning`，Bark 每日早报与 GLaDOS 签到完全分开
 - ✅ 新增 `RUN_MODE=reminder`，Bark 智能重要日提醒支持 30/7/3/1/0 天节点提醒
-- ✅ cron-job.org 支持独立触发 `checkin`、`heartbeat`、`morning`、`reminder`
+- ✅ 新增 `RUN_MODE=actions_monitor`，成功/失败都会推送最近一次 GitHub Actions 摘要
+- ✅ cron-job.org 支持独立触发 `checkin`、`heartbeat`、`morning`、`reminder`、`actions_monitor`
 - ✅ README 补充 07:30 早报、09:45/21:45 心跳任务配置
 - ✅ 倒数日支持生日自动计算岁数，农历生日使用 `lunar-python` 自动换算公历日期，同一天生日会合并展示
 

@@ -30,5 +30,9 @@ def run():
         from .app import send_important_day_reminders
 
         send_important_day_reminders()
+    elif run_mode in ("actions_monitor", "action_monitor", "github_actions", "actions"):
+        from .app import send_actions_monitor
+
+        send_actions_monitor()
     else:
         raise SystemExit(f"Unknown RUN_MODE: {run_mode}")

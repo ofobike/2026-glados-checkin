@@ -101,6 +101,7 @@ def load_data():
                 ("heartbeat_alerts", {}),
                 ("exchange_alerts", {}),
                 ("important_day_alerts", {}),
+                ("actions_monitor", {}),
             ]:
                 if key not in d:
                     d[key] = default
@@ -117,6 +118,7 @@ def load_data():
         "heartbeat_alerts": {},
         "exchange_alerts": {},
         "important_day_alerts": {},
+        "actions_monitor": {},
     }
 
 def save_data(data):
@@ -2725,6 +2727,366 @@ def send_heartbeat_check():
         _mark_heartbeat_alerted(data, slot)
         save_data(data)
         log(f"📣 心跳告警已发送: {slot}")
+
+
+def _actions_monitor_state(data):
+    if "actions_monitor" not in data:
+        data["actions_monitor"] = {}
+    return data["actions_monitor"]
+
+
+def _remember_current_actions_monitor_run(state):
+    current_run_id = os.environ.get("GITHUB_RUN_ID")
+    if not current_run_id:
+        return
+    ignored = [str(item) for item in state.get("ignored_run_ids", [])]
+    current_run_id = str(current_run_id)
+    if current_run_id in ignored:
+        ignored.remove(current_run_id)
+    ignored.insert(0, current_run_id)
+    state["ignored_run_ids"] = ignored[:30]
+
+
+def _actions_monitor_repo():
+    return (
+        env_text("ACTIONS_MONITOR_REPO")
+        or os.environ.get("GITHUB_REPOSITORY")
+        or "ofobike/2026-glados-checkin"
+    ).strip()
+
+
+def _actions_monitor_workflow():
+    return env_text("ACTIONS_MONITOR_WORKFLOW", "checkin.yml")
+
+
+def _actions_monitor_token():
+    return (
+        env_text("ACTIONS_MONITOR_TOKEN")
+        or env_text("GH_TOKEN")
+        or env_text("GITHUB_TOKEN")
+    )
+
+
+def _actions_repo_actions_url(repo):
+    server = os.environ.get("GITHUB_SERVER_URL", "https://github.com").rstrip("/")
+    if repo:
+        return f"{server}/{repo}/actions"
+    return github_actions_url()
+
+
+def _actions_run_url(run, repo=None):
+    return run.get("html_url") or _actions_repo_actions_url(repo or _actions_monitor_repo())
+
+
+def _actions_run_started_at(run):
+    return run.get("run_started_at") or run.get("created_at") or ""
+
+
+def _parse_github_time(value):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(BJT)
+    except Exception:
+        return None
+
+
+def _format_github_time(value):
+    dt = _parse_github_time(value)
+    if not dt:
+        return str(value or "未知")
+    return dt.strftime("%Y年%m月%d日 %H:%M")
+
+
+def _actions_run_duration(run):
+    start = _parse_github_time(_actions_run_started_at(run))
+    end = _parse_github_time(run.get("updated_at"))
+    if not start or not end or end < start:
+        return "未知"
+    seconds = int((end - start).total_seconds())
+    if seconds < 60:
+        return f"{seconds} 秒"
+    minutes, seconds = divmod(seconds, 60)
+    if minutes < 60:
+        return f"{minutes}分{seconds:02d}秒"
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours}小时{minutes:02d}分"
+
+
+def _actions_run_mode(run):
+    messages = [
+        run.get("display_title") or "",
+        run.get("head_commit", {}).get("message") or "",
+    ]
+    for message in messages:
+        match = re.search(r"mode[=:]\s*([A-Za-z0-9_-]+)", message, re.IGNORECASE)
+        if match:
+            return match.group(1)
+        normalized = str(message).strip().lower().replace("-", "_")
+        if normalized in (
+            "actions_monitor",
+            "action_monitor",
+            "github_actions",
+            "actions",
+            "checkin",
+            "heartbeat",
+            "morning",
+            "reminder",
+        ):
+            return normalized
+    event = run.get("event") or "未知"
+    return "手动/定时" if event == "workflow_dispatch" else event
+
+
+def _is_actions_monitor_run(run):
+    mode = str(_actions_run_mode(run)).strip().lower().replace("-", "_")
+    return mode in ("actions_monitor", "action_monitor", "github_actions", "actions")
+
+
+def _actions_run_summary_lines(run, failure_streak=0):
+    conclusion = run.get("conclusion") or run.get("status") or "unknown"
+    status_text = {
+        "success": "成功",
+        "failure": "失败",
+        "cancelled": "已取消",
+        "timed_out": "超时",
+        "action_required": "需要处理",
+        "in_progress": "运行中",
+        "queued": "排队中",
+    }.get(conclusion, conclusion)
+    lines = [
+        f"工作流: {run.get('name') or _actions_monitor_workflow()}",
+        f"状态: {status_text}",
+        f"分支: {run.get('head_branch') or '未知'}",
+        f"模式: {_actions_run_mode(run)}",
+        f"运行号: #{run.get('run_number') or run.get('id')}",
+        f"开始时间: {_format_github_time(_actions_run_started_at(run))}",
+        f"耗时: {_actions_run_duration(run)}",
+    ]
+    if failure_streak:
+        lines.append(f"连续失败: {failure_streak} 次")
+    actor = run.get("actor", {}).get("login")
+    if actor:
+        lines.append(f"触发人: {actor}")
+    title = run.get("display_title")
+    if title:
+        lines.append(f"标题: {title}")
+    return lines
+
+
+def _actions_monitor_body(run, failure_streak=0):
+    lines = ["🤖 GitHub Actions 监控", ""]
+    lines.extend(_actions_run_summary_lines(run, failure_streak=failure_streak))
+    lines.append("")
+    if run.get("conclusion") == "success":
+        lines.append("✅ 最新一次 workflow 运行成功。")
+    elif run.get("conclusion") in ("failure", "timed_out", "cancelled", "action_required"):
+        lines.append("🚨 最新一次 workflow 运行异常，请点击通知查看日志。")
+    else:
+        lines.append("ℹ️ workflow 仍在运行或状态未完成。")
+    return "\n".join(lines)
+
+
+def _actions_monitor_title(run, failure_streak=0):
+    conclusion = run.get("conclusion") or run.get("status") or "unknown"
+    if conclusion == "success":
+        return "GitHub Actions: 最新运行成功"
+    if conclusion in ("failure", "timed_out", "cancelled", "action_required"):
+        if failure_streak > 1:
+            return f"GitHub Actions: 连续失败 {failure_streak} 次"
+        return "GitHub Actions: 运行失败"
+    return f"GitHub Actions: {conclusion}"
+
+
+def _actions_monitor_level(run, failure_streak=0):
+    conclusion = run.get("conclusion") or run.get("status") or "unknown"
+    if conclusion == "success":
+        return env_text("ACTIONS_MONITOR_LEVEL_SUCCESS", "active")
+    if failure_streak >= 2:
+        return env_text("ACTIONS_MONITOR_LEVEL_FAILURE_REPEAT", "timeSensitive")
+    return env_text("ACTIONS_MONITOR_LEVEL_FAILURE", "active")
+
+
+def _actions_monitor_sound(run, failure_streak=0):
+    conclusion = run.get("conclusion") or run.get("status") or "unknown"
+    if conclusion == "success":
+        return env_text("ACTIONS_MONITOR_SOUND_SUCCESS", "birdsong")
+    if failure_streak >= 3:
+        return env_text("ACTIONS_MONITOR_SOUND_FAILURE_REPEAT", "alarm")
+    return env_text("ACTIONS_MONITOR_SOUND_FAILURE", "bell")
+
+
+def _fetch_actions_runs(repo, workflow, token=None):
+    mock_file = env_text("ACTIONS_MONITOR_MOCK_FILE")
+    if mock_file:
+        log(f"🧪 使用 ACTIONS_MONITOR_MOCK_FILE: {mock_file}")
+        data = json.loads(open(mock_file, "r", encoding="utf-8").read())
+        return data.get("workflow_runs", [])
+
+    url = f"https://api.github.com/repos/{repo}/actions/workflows/{workflow}/runs"
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "2026-glados-checkin-actions-monitor",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    params = {
+        "per_page": env_int("ACTIONS_MONITOR_FETCH_LIMIT", 10) or 10,
+    }
+    resp = requests.get(url, headers=headers, params=params, timeout=20)
+    if resp.status_code >= 400:
+        raise RuntimeError(f"GitHub API HTTP {resp.status_code}: {resp.text[:200]}")
+    return resp.json().get("workflow_runs", [])
+
+
+def _select_actions_run(runs, state):
+    ignored_ids = set(str(item) for item in state.get("ignored_run_ids", []))
+    current_run_id = os.environ.get("GITHUB_RUN_ID")
+    if current_run_id:
+        ignored_ids.add(str(current_run_id))
+
+    for run in runs:
+        run_id = str(run.get("id") or "")
+        if not run_id or run_id in ignored_ids:
+            continue
+        if _is_actions_monitor_run(run):
+            continue
+        if run.get("status") != "completed":
+            continue
+        return run
+    return None
+
+
+def _actions_failure_streak(runs, selected_run, state):
+    ignored_ids = set(str(item) for item in state.get("ignored_run_ids", []))
+    current_run_id = os.environ.get("GITHUB_RUN_ID")
+    if current_run_id:
+        ignored_ids.add(str(current_run_id))
+
+    streak = 0
+    for run in runs:
+        run_id = str(run.get("id") or "")
+        if not run_id or run_id in ignored_ids:
+            continue
+        if _is_actions_monitor_run(run):
+            continue
+        if run.get("status") != "completed":
+            continue
+        conclusion = run.get("conclusion") or run.get("status") or "unknown"
+        if conclusion in ("failure", "timed_out", "cancelled", "action_required"):
+            streak += 1
+            continue
+        break
+
+    selected_conclusion = selected_run.get("conclusion") or selected_run.get("status") or "unknown"
+    if selected_conclusion in ("failure", "timed_out", "cancelled", "action_required"):
+        return max(1, streak)
+    return 0
+
+
+def _actions_monitor_already_sent(state, run, conclusion):
+    if env_flag("ACTIONS_MONITOR_FORCE", False):
+        return False
+    return (
+        str(state.get("last_notified_run_id")) == str(run.get("id"))
+        and state.get("last_notified_conclusion") == conclusion
+    )
+
+
+def _update_actions_monitor_state(state, run, failure_streak):
+    conclusion = run.get("conclusion") or run.get("status") or "unknown"
+    run_id = str(run.get("id") or "")
+
+    state["last_seen_run_id"] = run_id
+    state["last_seen_conclusion"] = conclusion
+    state["last_seen_at"] = now_bjt().strftime("%Y-%m-%d %H:%M:%S")
+    state["failure_streak"] = failure_streak
+    return failure_streak
+
+
+def send_actions_monitor():
+    """Monitor latest GitHub Actions workflow run and send Bark summary."""
+    log("🤖 GitHub Actions 监控开始...")
+    if not env_flag("ACTIONS_MONITOR_ENABLED", True):
+        log("⏭️ ACTIONS_MONITOR_ENABLED=false，跳过")
+        return False
+
+    bark_key = os.environ.get("BARK_KEY")
+    data = load_data()
+    state = _actions_monitor_state(data)
+    _remember_current_actions_monitor_run(state)
+    repo = _actions_monitor_repo()
+    workflow = _actions_monitor_workflow()
+    token = _actions_monitor_token()
+
+    log("🔎 Actions 监控参数:")
+    log(f"   repo: {repo}")
+    log(f"   workflow: {workflow}")
+    log(f"   has_token: {bool(token)}")
+    log(f"   current_run_id: {os.environ.get('GITHUB_RUN_ID') or 'local'}")
+
+    try:
+        runs = _fetch_actions_runs(repo, workflow, token=token)
+    except Exception as e:
+        log(f"❌ GitHub Actions 查询失败: {e}")
+        save_data(data)
+        if not bark_key:
+            return False
+        return bark_event_push(
+            bark_key,
+            "GitHub Actions 监控失败",
+            f"查询 {repo}/{workflow} 最近运行失败。\n\n错误: {e}",
+            level=env_text("ACTIONS_MONITOR_LEVEL_ERROR", "timeSensitive"),
+            sound=env_text("ACTIONS_MONITOR_SOUND_ERROR", "alarm"),
+            group_suffix=env_text("ACTIONS_MONITOR_GROUP_SUFFIX", "Actions"),
+            url=_actions_repo_actions_url(repo),
+        )
+
+    run = _select_actions_run(runs, state)
+    if not run:
+        log("⏭️ 未找到可监控的已完成 workflow run")
+        save_data(data)
+        return False
+
+    conclusion = run.get("conclusion") or run.get("status") or "unknown"
+    failure_streak = _actions_failure_streak(runs, run, state)
+    _update_actions_monitor_state(state, run, failure_streak)
+    log(f"   selected_run_id: {run.get('id')}")
+    log(f"   conclusion: {conclusion}")
+    log(f"   failure_streak: {failure_streak}")
+
+    if _actions_monitor_already_sent(state, run, conclusion):
+        log(f"⏭️ run {run.get('id')} / {conclusion} 已提醒过")
+        save_data(data)
+        return False
+
+    if not bark_key:
+        log("⚠️ 未配置 BARK_KEY，无法发送 Actions 监控提醒；本次仅输出日志")
+        save_data(data)
+        return False
+
+    title = _actions_monitor_title(run, failure_streak=failure_streak)
+    body = _actions_monitor_body(run, failure_streak=failure_streak)
+    ok = bark_event_push(
+        bark_key,
+        title,
+        body,
+        level=_actions_monitor_level(run, failure_streak=failure_streak),
+        sound=_actions_monitor_sound(run, failure_streak=failure_streak),
+        group_suffix=env_text("ACTIONS_MONITOR_GROUP_SUFFIX", "Actions"),
+        url=env_text("ACTIONS_MONITOR_BARK_URL") or _actions_run_url(run, repo=repo),
+        body_limit=env_int("ACTIONS_MONITOR_BARK_BODY_LIMIT", 1200) or 1200,
+        copy_limit=env_int("ACTIONS_MONITOR_BARK_COPY_LIMIT", 1200) or 1200,
+        default_url=_actions_run_url(run, repo=repo),
+    )
+    if ok:
+        state["last_notified_run_id"] = str(run.get("id"))
+        state["last_notified_conclusion"] = conclusion
+        state["last_notified_at"] = now_bjt().strftime("%Y-%m-%d %H:%M:%S")
+        log(f"📣 Actions 监控提醒已发送: run {run.get('id')} / {conclusion}")
+    save_data(data)
+    return ok
 
 
 def _exchange_alert_key(email, need):

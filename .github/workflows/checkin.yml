@@ -1,12 +1,17 @@
 name: GLaDOS 2026 Checkin
+run-name: mode=${{ github.event.inputs.mode || 'checkin' }}
 
 on:
   workflow_dispatch:  # 仅保留手动触发（定时由 cron-job.org 管理）
     inputs:
       mode:
-        description: '运行模式：checkin=签到，heartbeat=心跳监控，morning=早报，reminder=重要日提醒'
+        description: '运行模式：checkin=签到，heartbeat=心跳监控，morning=早报，reminder=重要日提醒，actions_monitor=Actions监控'
         required: false
         default: 'checkin'
+
+permissions:
+  actions: read
+  contents: read
 
 jobs:
   checkin:
@@ -75,6 +80,7 @@ jobs:
           BARK_VOLUME: ${{ secrets.BARK_VOLUME }}
           # 可选配置
           RUN_MODE: ${{ github.event.inputs.mode || 'checkin' }}
+          GITHUB_TOKEN: ${{ github.token }}
           HEARTBEAT_GRACE_MINUTES: ${{ secrets.HEARTBEAT_GRACE_MINUTES }}
           HEARTBEAT_BARK_LEVEL: ${{ secrets.HEARTBEAT_BARK_LEVEL }}
           HEARTBEAT_BARK_SOUND: ${{ secrets.HEARTBEAT_BARK_SOUND }}
@@ -116,6 +122,24 @@ jobs:
           IMPORTANT_DAY_BARK_SOUND_EARLY: ${{ secrets.IMPORTANT_DAY_BARK_SOUND_EARLY }}
           IMPORTANT_DAY_BARK_SOUND_SOON: ${{ secrets.IMPORTANT_DAY_BARK_SOUND_SOON }}
           IMPORTANT_DAY_BARK_SOUND_URGENT: ${{ secrets.IMPORTANT_DAY_BARK_SOUND_URGENT }}
+          ACTIONS_MONITOR_ENABLED: ${{ secrets.ACTIONS_MONITOR_ENABLED }}
+          ACTIONS_MONITOR_REPO: ${{ secrets.ACTIONS_MONITOR_REPO }}
+          ACTIONS_MONITOR_WORKFLOW: ${{ secrets.ACTIONS_MONITOR_WORKFLOW }}
+          ACTIONS_MONITOR_TOKEN: ${{ secrets.ACTIONS_MONITOR_TOKEN }}
+          ACTIONS_MONITOR_FETCH_LIMIT: ${{ secrets.ACTIONS_MONITOR_FETCH_LIMIT }}
+          ACTIONS_MONITOR_FORCE: ${{ secrets.ACTIONS_MONITOR_FORCE }}
+          ACTIONS_MONITOR_GROUP_SUFFIX: ${{ secrets.ACTIONS_MONITOR_GROUP_SUFFIX }}
+          ACTIONS_MONITOR_BARK_URL: ${{ secrets.ACTIONS_MONITOR_BARK_URL }}
+          ACTIONS_MONITOR_BARK_BODY_LIMIT: ${{ secrets.ACTIONS_MONITOR_BARK_BODY_LIMIT }}
+          ACTIONS_MONITOR_BARK_COPY_LIMIT: ${{ secrets.ACTIONS_MONITOR_BARK_COPY_LIMIT }}
+          ACTIONS_MONITOR_LEVEL_SUCCESS: ${{ secrets.ACTIONS_MONITOR_LEVEL_SUCCESS }}
+          ACTIONS_MONITOR_LEVEL_FAILURE: ${{ secrets.ACTIONS_MONITOR_LEVEL_FAILURE }}
+          ACTIONS_MONITOR_LEVEL_FAILURE_REPEAT: ${{ secrets.ACTIONS_MONITOR_LEVEL_FAILURE_REPEAT }}
+          ACTIONS_MONITOR_LEVEL_ERROR: ${{ secrets.ACTIONS_MONITOR_LEVEL_ERROR }}
+          ACTIONS_MONITOR_SOUND_SUCCESS: ${{ secrets.ACTIONS_MONITOR_SOUND_SUCCESS }}
+          ACTIONS_MONITOR_SOUND_FAILURE: ${{ secrets.ACTIONS_MONITOR_SOUND_FAILURE }}
+          ACTIONS_MONITOR_SOUND_FAILURE_REPEAT: ${{ secrets.ACTIONS_MONITOR_SOUND_FAILURE_REPEAT }}
+          ACTIONS_MONITOR_SOUND_ERROR: ${{ secrets.ACTIONS_MONITOR_SOUND_ERROR }}
 
       - name: Retry on Failure
         if: failure()
@@ -163,6 +187,7 @@ jobs:
           BARK_VOLUME: ${{ secrets.BARK_VOLUME }}
           # 可选配置
           RUN_MODE: ${{ github.event.inputs.mode || 'checkin' }}
+          GITHUB_TOKEN: ${{ github.token }}
           HEARTBEAT_GRACE_MINUTES: ${{ secrets.HEARTBEAT_GRACE_MINUTES }}
           HEARTBEAT_BARK_LEVEL: ${{ secrets.HEARTBEAT_BARK_LEVEL }}
           HEARTBEAT_BARK_SOUND: ${{ secrets.HEARTBEAT_BARK_SOUND }}
@@ -204,3 +229,21 @@ jobs:
           IMPORTANT_DAY_BARK_SOUND_EARLY: ${{ secrets.IMPORTANT_DAY_BARK_SOUND_EARLY }}
           IMPORTANT_DAY_BARK_SOUND_SOON: ${{ secrets.IMPORTANT_DAY_BARK_SOUND_SOON }}
           IMPORTANT_DAY_BARK_SOUND_URGENT: ${{ secrets.IMPORTANT_DAY_BARK_SOUND_URGENT }}
+          ACTIONS_MONITOR_ENABLED: ${{ secrets.ACTIONS_MONITOR_ENABLED }}
+          ACTIONS_MONITOR_REPO: ${{ secrets.ACTIONS_MONITOR_REPO }}
+          ACTIONS_MONITOR_WORKFLOW: ${{ secrets.ACTIONS_MONITOR_WORKFLOW }}
+          ACTIONS_MONITOR_TOKEN: ${{ secrets.ACTIONS_MONITOR_TOKEN }}
+          ACTIONS_MONITOR_FETCH_LIMIT: ${{ secrets.ACTIONS_MONITOR_FETCH_LIMIT }}
+          ACTIONS_MONITOR_FORCE: ${{ secrets.ACTIONS_MONITOR_FORCE }}
+          ACTIONS_MONITOR_GROUP_SUFFIX: ${{ secrets.ACTIONS_MONITOR_GROUP_SUFFIX }}
+          ACTIONS_MONITOR_BARK_URL: ${{ secrets.ACTIONS_MONITOR_BARK_URL }}
+          ACTIONS_MONITOR_BARK_BODY_LIMIT: ${{ secrets.ACTIONS_MONITOR_BARK_BODY_LIMIT }}
+          ACTIONS_MONITOR_BARK_COPY_LIMIT: ${{ secrets.ACTIONS_MONITOR_BARK_COPY_LIMIT }}
+          ACTIONS_MONITOR_LEVEL_SUCCESS: ${{ secrets.ACTIONS_MONITOR_LEVEL_SUCCESS }}
+          ACTIONS_MONITOR_LEVEL_FAILURE: ${{ secrets.ACTIONS_MONITOR_LEVEL_FAILURE }}
+          ACTIONS_MONITOR_LEVEL_FAILURE_REPEAT: ${{ secrets.ACTIONS_MONITOR_LEVEL_FAILURE_REPEAT }}
+          ACTIONS_MONITOR_LEVEL_ERROR: ${{ secrets.ACTIONS_MONITOR_LEVEL_ERROR }}
+          ACTIONS_MONITOR_SOUND_SUCCESS: ${{ secrets.ACTIONS_MONITOR_SOUND_SUCCESS }}
+          ACTIONS_MONITOR_SOUND_FAILURE: ${{ secrets.ACTIONS_MONITOR_SOUND_FAILURE }}
+          ACTIONS_MONITOR_SOUND_FAILURE_REPEAT: ${{ secrets.ACTIONS_MONITOR_SOUND_FAILURE_REPEAT }}
+          ACTIONS_MONITOR_SOUND_ERROR: ${{ secrets.ACTIONS_MONITOR_SOUND_ERROR }}
