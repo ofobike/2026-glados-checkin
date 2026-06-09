@@ -2832,6 +2832,7 @@ def _actions_run_mode(run):
             "heartbeat",
             "morning",
             "reminder",
+            "habit",
         ):
             return normalized
     event = run.get("event") or "未知"

@@ -5,9 +5,29 @@ on:
   workflow_dispatch:  # 仅保留手动触发（定时由 cron-job.org 管理）
     inputs:
       mode:
-        description: '运行模式：checkin=签到，heartbeat=心跳监控，morning=早报，reminder=重要日提醒，actions_monitor=Actions监控'
+        description: '运行模式：checkin=签到，heartbeat=心跳监控，morning=早报，reminder=重要日提醒，actions_monitor=Actions监控，habit=习惯提醒'
         required: false
         default: 'checkin'
+      habit_type:
+        description: '习惯提醒类型：water/stand/study/exercise/sleep/medicine/eye/random'
+        required: false
+        default: ''
+      habit_title:
+        description: '习惯提醒标题，可选'
+        required: false
+        default: ''
+      habit_message:
+        description: '习惯提醒正文，可选'
+        required: false
+        default: ''
+      habit_url:
+        description: '习惯提醒点击跳转 URL，可选'
+        required: false
+        default: ''
+      habit_force:
+        description: '是否忽略去重直接发送：true/false'
+        required: false
+        default: ''
 
 permissions:
   actions: read
@@ -140,6 +160,19 @@ jobs:
           ACTIONS_MONITOR_SOUND_FAILURE: ${{ secrets.ACTIONS_MONITOR_SOUND_FAILURE }}
           ACTIONS_MONITOR_SOUND_FAILURE_REPEAT: ${{ secrets.ACTIONS_MONITOR_SOUND_FAILURE_REPEAT }}
           ACTIONS_MONITOR_SOUND_ERROR: ${{ secrets.ACTIONS_MONITOR_SOUND_ERROR }}
+          HABIT_ENABLED: ${{ secrets.HABIT_ENABLED }}
+          HABIT_TYPE: ${{ github.event.inputs.habit_type || secrets.HABIT_TYPE }}
+          HABIT_TITLE: ${{ github.event.inputs.habit_title || secrets.HABIT_TITLE }}
+          HABIT_MESSAGE: ${{ github.event.inputs.habit_message || secrets.HABIT_MESSAGE }}
+          HABIT_BARK_URL: ${{ github.event.inputs.habit_url || secrets.HABIT_BARK_URL }}
+          HABIT_FORCE: ${{ github.event.inputs.habit_force || secrets.HABIT_FORCE }}
+          HABIT_BARK_LEVEL: ${{ secrets.HABIT_BARK_LEVEL }}
+          HABIT_BARK_SOUND: ${{ secrets.HABIT_BARK_SOUND }}
+          HABIT_GROUP_SUFFIX: ${{ secrets.HABIT_GROUP_SUFFIX }}
+          HABIT_DEDUPE_MINUTES: ${{ secrets.HABIT_DEDUPE_MINUTES }}
+          HABIT_RANDOM_TASKS: ${{ secrets.HABIT_RANDOM_TASKS }}
+          HABIT_BARK_BODY_LIMIT: ${{ secrets.HABIT_BARK_BODY_LIMIT }}
+          HABIT_BARK_COPY_LIMIT: ${{ secrets.HABIT_BARK_COPY_LIMIT }}
 
       - name: Retry on Failure
         if: failure()
@@ -247,3 +280,16 @@ jobs:
           ACTIONS_MONITOR_SOUND_FAILURE: ${{ secrets.ACTIONS_MONITOR_SOUND_FAILURE }}
           ACTIONS_MONITOR_SOUND_FAILURE_REPEAT: ${{ secrets.ACTIONS_MONITOR_SOUND_FAILURE_REPEAT }}
           ACTIONS_MONITOR_SOUND_ERROR: ${{ secrets.ACTIONS_MONITOR_SOUND_ERROR }}
+          HABIT_ENABLED: ${{ secrets.HABIT_ENABLED }}
+          HABIT_TYPE: ${{ github.event.inputs.habit_type || secrets.HABIT_TYPE }}
+          HABIT_TITLE: ${{ github.event.inputs.habit_title || secrets.HABIT_TITLE }}
+          HABIT_MESSAGE: ${{ github.event.inputs.habit_message || secrets.HABIT_MESSAGE }}
+          HABIT_BARK_URL: ${{ github.event.inputs.habit_url || secrets.HABIT_BARK_URL }}
+          HABIT_FORCE: ${{ github.event.inputs.habit_force || secrets.HABIT_FORCE }}
+          HABIT_BARK_LEVEL: ${{ secrets.HABIT_BARK_LEVEL }}
+          HABIT_BARK_SOUND: ${{ secrets.HABIT_BARK_SOUND }}
+          HABIT_GROUP_SUFFIX: ${{ secrets.HABIT_GROUP_SUFFIX }}
+          HABIT_DEDUPE_MINUTES: ${{ secrets.HABIT_DEDUPE_MINUTES }}
+          HABIT_RANDOM_TASKS: ${{ secrets.HABIT_RANDOM_TASKS }}
+          HABIT_BARK_BODY_LIMIT: ${{ secrets.HABIT_BARK_BODY_LIMIT }}
+          HABIT_BARK_COPY_LIMIT: ${{ secrets.HABIT_BARK_COPY_LIMIT }}

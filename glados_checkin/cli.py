@@ -34,5 +34,9 @@ def run():
         from .app import send_actions_monitor
 
         send_actions_monitor()
+    elif run_mode in ("habit", "habit_reminder", "bark_habit"):
+        from .habit import send_habit_reminder
+
+        send_habit_reminder()
     else:
         raise SystemExit(f"Unknown RUN_MODE: {run_mode}")

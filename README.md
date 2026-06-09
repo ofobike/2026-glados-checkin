@@ -68,6 +68,7 @@
 - [⭐ 推荐方案：cron-job.org 配置定时](#-推荐方案-cron-joborg-配置定时)
 - [💻 本地/独立服务器部署](#-本地独立服务器部署教程)
 - [🌅 Bark 独立每日早报](#-bark-独立每日早报)
+- [🌱 Bark 习惯提醒](#-bark-习惯提醒)
 - [❄️ NixOS 服务配置](#️-nixos-服务配置)
 - [📊 推送效果预览](#-推送效果预览)
 - [❓ 常见问题](#-常见问题)
@@ -282,6 +283,9 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | `IMPORTANT_DAY_REMINDER_DAYS` | ❌ 否 | 智能重要日提醒节点，默认 `30,7,3,1,0`。                               |
 | `MORNING_TODOS` / `DAILY_TODOS` | ❌ 否 | Bark 每日早报里的今日待办，支持换行或分号分隔。                 |
 | `MORNING_REMINDER` / `DAILY_REMINDER` | ❌ 否 | Bark 每日早报里的每日提醒。                              |
+| `HABIT_TYPE` | ❌ 否 | Bark 习惯提醒类型，支持 `water`、`stand`、`study`、`exercise`、`sleep`、`medicine`、`eye`、`random`。 |
+| `HABIT_DEDUPE_MINUTES` | ❌ 否 | 习惯提醒去重窗口，默认 `20` 分钟。                                    |
+| `HABIT_RANDOM_TASKS` | ❌ 否 | 随机小任务列表，支持换行或分号分隔。                                  |
 
 > 💡 **推送渠道可自由组合**：你可以同时配置多个推送渠道，签到结果会同时推送到所有已配置的渠道。详见 [推送渠道说明](#-推送渠道说明)。
 
@@ -635,12 +639,15 @@ else:
 | **07:30** | Bark 每日早报 | `{ "ref": "main", "inputs": { "mode": "morning" } }` |
 | **09:30** | GLaDOS 早签到 | `{ "ref": "main", "inputs": { "mode": "checkin" } }` |
 | **09:45** | GLaDOS 早签到心跳 | `{ "ref": "main", "inputs": { "mode": "heartbeat" } }` |
+| **10:30** | Bark 喝水提醒 | `{ "ref": "main", "inputs": { "mode": "habit", "habit_type": "water" } }` |
+| **15:30** | Bark 护眼提醒 | `{ "ref": "main", "inputs": { "mode": "habit", "habit_type": "eye" } }` |
 | **20:30** | Bark 智能重要日提醒 | `{ "ref": "main", "inputs": { "mode": "reminder" } }` |
 | **21:30** | GLaDOS 晚签到 | `{ "ref": "main", "inputs": { "mode": "checkin" } }` |
 | **21:45** | GLaDOS 晚签到心跳 | `{ "ref": "main", "inputs": { "mode": "heartbeat" } }` |
 | **22:05** | Bark GitHub Actions 监控 | `{ "ref": "main", "inputs": { "mode": "actions_monitor" } }` |
+| **23:20** | Bark 睡觉提醒 | `{ "ref": "main", "inputs": { "mode": "habit", "habit_type": "sleep" } }` |
 
-> 💡 `mode=morning`、`mode=reminder` 和 `mode=actions_monitor` 都是独立 Bark 任务，不会读取 `GLADOS_COOKIE`，也不会执行签到。
+> 💡 `mode=morning`、`mode=reminder`、`mode=actions_monitor` 和 `mode=habit` 都是独立 Bark 任务，不会读取 `GLADOS_COOKIE`，也不会执行签到。
 
 ### 配置步骤
 
@@ -832,6 +839,9 @@ RUN_MODE=heartbeat python3 checkin.py
 
 # 可选：只发送 Bark 每日早报（不需要 GLADOS_COOKIE）
 RUN_MODE=morning python3 checkin.py
+
+# 可选：只发送 Bark 习惯提醒（不需要 GLADOS_COOKIE）
+RUN_MODE=habit HABIT_TYPE=water python3 checkin.py
 ```
 
 ### 第三步：设置定时任务 (Cron)
@@ -863,6 +873,7 @@ RUN_MODE=morning python3 checkin.py
 | `morning` | Bark 每日早报 | 不需要 | 不会 |
 | `reminder` | Bark 智能重要日提醒 | 不需要 | 不会 |
 | `actions_monitor` | Bark GitHub Actions 监控 | 不需要 | 不会 |
+| `habit` | Bark 习惯提醒 | 不需要 | 不会 |
 
 推荐在 cron-job.org 里触发 GitHub Actions 时传：
 
@@ -892,6 +903,61 @@ RUN_MODE=morning python3 checkin.py
 | `MORNING_GROUP_SUFFIX` | Bark 分组后缀，默认 `早报` |
 | `MORNING_BARK_BODY_LIMIT` | 锁屏正文长度，默认 `1200` |
 | `MORNING_BARK_COPY_LIMIT` | 复制内容长度，默认 `1200` |
+
+### Bark 习惯提醒
+
+习惯提醒是独立 Bark 任务，适合做喝水、起身活动、护眼、学习、运动、睡觉等小提醒。不需要 `GLADOS_COOKIE`，只需要 `BARK_KEY`。
+
+cron-job.org 触发 GitHub Actions 时传：
+
+```json
+{"ref":"main","inputs":{"mode":"habit","habit_type":"water"}}
+```
+
+常用 Raw Body 示例：
+
+| 习惯 | Raw Body |
+|------|----------|
+| 喝水 | `{"ref":"main","inputs":{"mode":"habit","habit_type":"water"}}` |
+| 起身活动 | `{"ref":"main","inputs":{"mode":"habit","habit_type":"stand"}}` |
+| 护眼 | `{"ref":"main","inputs":{"mode":"habit","habit_type":"eye"}}` |
+| 学习 | `{"ref":"main","inputs":{"mode":"habit","habit_type":"study"}}` |
+| 运动 | `{"ref":"main","inputs":{"mode":"habit","habit_type":"exercise"}}` |
+| 睡觉 | `{"ref":"main","inputs":{"mode":"habit","habit_type":"sleep"}}` |
+| 用药 | `{"ref":"main","inputs":{"mode":"habit","habit_type":"medicine"}}` |
+| 随机小任务 | `{"ref":"main","inputs":{"mode":"habit","habit_type":"random"}}` |
+
+自定义标题、正文和点击跳转：
+
+```json
+{
+  "ref": "main",
+  "inputs": {
+    "mode": "habit",
+    "habit_type": "study",
+    "habit_title": "学习提醒",
+    "habit_message": "开始 25 分钟专注学习，先完成一个小章节。",
+    "habit_url": "shortcuts://run-shortcut?name=学习专注"
+  }
+}
+```
+
+可选配置：
+
+| 变量 / 输入 | 说明 |
+|-------------|------|
+| `habit_type` / `HABIT_TYPE` | 提醒类型：`water`、`stand`、`study`、`exercise`、`sleep`、`medicine`、`eye`、`random` |
+| `habit_title` / `HABIT_TITLE` | 自定义标题 |
+| `habit_message` / `HABIT_MESSAGE` | 自定义正文 |
+| `habit_url` / `HABIT_BARK_URL` | 点击通知打开的 URL，可填网页或 `shortcuts://` |
+| `HABIT_BARK_LEVEL` | Bark 级别，默认按类型决定 |
+| `HABIT_BARK_SOUND` | Bark 铃声，默认按类型决定 |
+| `HABIT_GROUP_SUFFIX` | Bark 分组后缀，默认 `习惯` |
+| `HABIT_DEDUPE_MINUTES` | 同类提醒去重窗口，默认 `20` 分钟 |
+| `habit_force` / `HABIT_FORCE` | 手动测试用，填 `true` 会忽略去重直接推送 |
+| `HABIT_RANDOM_TASKS` | 随机小任务列表，支持换行或分号分隔 |
+
+> 💡 如果你要在 cron-job.org 配多个习惯提醒，推荐每个任务都在 Raw Body 里写 `habit_type`，不要只靠 GitHub Secrets 里的 `HABIT_TYPE`，这样每个任务可以各发各的提醒。
 
 ### 倒数日和生日配置
 
@@ -1392,6 +1458,7 @@ cookie1&cookie2&cookie3
 | `glados_checkin/app.py` | 核心业务流程（签到、统计、心跳、兑换提醒）  |
 | `glados_checkin/cli.py` | 命令行入口和 `RUN_MODE` 分发                |
 | `glados_checkin/morning.py` | Bark 独立每日早报                       |
+| `glados_checkin/habit.py` | Bark 独立习惯提醒                       |
 | `glados_checkin/bark.py` | Bark 推送 payload、分级、角标、跳转、复制 |
 | `glados_checkin/notifiers.py` | PushPlus / Server酱 / 钉钉 / Telegram 发送 |
 | `glados_checkin/renderers.py` | PushPlus / Telegram 消息渲染模块    |
@@ -1420,6 +1487,13 @@ cookie1&cookie2&cookie3
 ---
 
 ## 📝 更新日志
+
+### v1.7.0 (2026-06-09) 🌱 Bark 习惯提醒
+
+- ✅ 新增 `RUN_MODE=habit`，Bark 习惯提醒与 GLaDOS 签到完全分开
+- ✅ 支持喝水、起身活动、学习、运动、睡觉、用药、护眼、随机小任务
+- ✅ cron-job.org 支持通过 `habit_type`、`habit_title`、`habit_message`、`habit_url` 为每个习惯任务单独传参
+- ✅ 支持 `HABIT_DEDUPE_MINUTES` 去重和 `HABIT_FORCE` 手动测试
 
 ### v1.6.0 (2026-06-08) 🌅 Bark 独立早报与标准包结构
 
