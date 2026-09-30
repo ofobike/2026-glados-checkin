@@ -83,7 +83,7 @@
 
 > 本项目 Fork 自 [lankerr/2026-glados-checkin](https://github.com/lankerr/2026-glados-checkin)，并添加了大量自定义功能。
 >
-> **同步策略**：只同步上游的核心签到逻辑更新，跳过代码清理和文档更新。详见 [SYNC_GUIDE.md](SYNC_GUIDE.md)。
+> **同步策略**：只同步上游的核心签到逻辑更新，跳过代码清理和文档更新。详见 [SYNC_GUIDE.md](SYNC_GUIDE.md) 与 [UPSTREAM_SYNC_RUNBOOK.md](UPSTREAM_SYNC_RUNBOOK.md)（实战操作手册）。
 
 ---
 
@@ -195,6 +195,8 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | ☀️ **天气 + 每日一句**  | 推送附带天气预报和励志语录              |
 | 🍪 **Cookie 过期告警**  | Cookie 失效时自动发送告警通知           |
 | ☁️ **2026 API**         | 适配最新 glados.cloud API               |
+| 🍪 **gld:sess 新版会话** | 2026-09 起支持新版 `gld:sess`/`gld:sess.sig`，同时兼容旧版 `koa:sess` |
+| 🔐 **认证失败检测**     | 识别 `device-mismatch`/`没有权限`，停止无效重试并提示重新登录  |
 | 🔄 **智能域名切换**     | 自动尝试 cloud → rocks → network        |
 | 📋 **多账号支持**       | 一个配置管理多个 GLaDOS 账号            |
 | 🌍 **自定义天气城市**   | 通过环境变量配置天气城市                |
@@ -391,7 +393,7 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 
 ![Cookie-Editor 扩展](images/cookie-extension.png)
 
-> 💡 **提示**：以下任意一个扩展都可以使用，只要能显示 `koa:sess` 和 `koa:sess.sig` 这两个 Cookie 就行！
+> 💡 **提示**：以下任意一个扩展都可以使用，只要能显示 `gld:sess` 和 `gld:sess.sig` 这两个**新版** Cookie 就行（旧版 `koa:sess` / `koa:sess.sig` 代码仍兼容，但建议更新为新版）！
 
 ![可选的 Cookie 扩展](images/cookie-alternative.png)
 
@@ -400,24 +402,33 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 1. 打开 [https://glados.cloud](https://glados.cloud) 并登录
 2. 进入 **签到页面**（Console → Checkin）
 3. 点击浏览器右上角的 **Cookie-Editor** 扩展图标
-4. 找到并复制这两个值：
-   - `koa:sess` → 一串很长的字符串
-   - `koa:sess.sig` → 一串较短的字符串
+4. 找到并复制这两个值（**2026-09 起官方启用新版 `gld:sess` 会话**）：
+   - `gld:sess` → 一串很长的字符串
+   - `gld:sess.sig` → 一串较短的字符串
+   - （旧版 `koa:sess` / `koa:sess.sig` 代码仍兼容，但新版接口建议用 `gld:sess`）
 
 ![获取 Cookie](images/glados-cookies.png)
 
 #### 2.3 组合 Cookie（重要！）
 
-将两个值按以下格式组合，**注意格式必须完全正确**：
+将两个值按以下格式组合，**注意格式必须完全正确**。2026-09 起新版接口要求完整的 `gld:sess` + `gld:sess.sig`：
+
+```text
+gld:sess=你的长字符串; gld:sess.sig=你的短字符串
+```
+
+**正确示例（新版，推荐）**：
+
+```text
+gld:sess=eyJ1c2VySWQiOjEyMzQ1Njc4OTB9; gld:sess.sig=abcdef123456
+```
+
+> ⚠️ 2026-09 起官方启用了新的 `gld:sess` 会话。如果只包含旧版 `koa:sess`，新版接口会返回「没有权限」，请更新为完整新版 Cookie。旧版 `koa:sess` 仍被代码兼容，但建议尽快切换。
+
+**旧版兼容格式（不推荐）**：
 
 ```text
 koa:sess=你的长字符串; koa:sess.sig=你的短字符串
-```
-
-**正确示例**：
-
-```text
-koa:sess=eyJ1c2VySWQiOjEyMzQ1Njc4OTB9; koa:sess.sig=abcdef123456
 ```
 
 **常见错误**：
@@ -433,17 +444,15 @@ koa:sess=eyJ1c2VySWQiOjEyMzQ1Njc4OTB9; koa:sess.sig=abcdef123456
 
 ```python
 # 将你的 Cookie 粘贴到下面的引号中
-cookie = "koa:sess=你的长字符串; koa:sess.sig=你的短字符串"
+cookie = "gld:sess=你的长字符串; gld:sess.sig=你的短字符串"
 
-# 验证
-if "koa:sess=" in cookie and "koa:sess.sig=" in cookie and "; " in cookie:
-    parts = cookie.split("; ")
-    if len(parts) == 2 and parts[0].startswith("koa:sess=") and parts[1].startswith("koa:sess.sig="):
-        print("✅ Cookie 格式正确！")
-    else:
-        print("❌ 格式错误，请检查分号和空格")
+# 验证（gld:sess 新版优先，koa:sess 旧版兼容）
+if "gld:sess=" in cookie and "gld:sess.sig=" in cookie and "; " in cookie:
+    print("✅ Cookie 格式正确（新版 gld:sess）！")
+elif "koa:sess=" in cookie and "koa:sess.sig=" in cookie and "; " in cookie:
+    print("⚠️ Cookie 为旧版 koa:sess，建议更新为 gld:sess 以避免「没有权限」")
 else:
-    print("❌ Cookie 缺少必要的字段")
+    print("❌ Cookie 缺少必要的字段或格式错误")
 ```
 
 ---
@@ -817,8 +826,8 @@ pip install -r requirements.txt
 使用环境变量传递 Cookie 并直接运行 Python 脚本：
 
 ```bash
-# 必填：配置 Cookie
-export GLADOS_COOKIE="koa:sess=xxxxxx; koa:sess.sig=yyyyyy"
+# 必填：配置 Cookie（2026-09 新版用 gld:sess；旧版 koa:sess 亦可兼容）
+export GLADOS_COOKIE="gld:sess=xxxxxx; gld:sess.sig=yyyyyy"
 
 # 可选：配置推送渠道（按需选择一个或多个）
 export PUSHPLUS_TOKEN="xxx"
@@ -854,10 +863,10 @@ RUN_MODE=habit HABIT_TYPE=water python3 checkin.py
 
 ```bash
 # 早签到 9:30
-30 9 * * * export GLADOS_COOKIE="koa:sess=xxx..."; cd /path/to/2026-glados-checkin && python3 checkin.py >> glados.log 2>&1
+30 9 * * * export GLADOS_COOKIE="gld:sess=xxx..."; cd /path/to/2026-glados-checkin && python3 checkin.py >> glados.log 2>&1
 
 # 晚签到 21:30
-30 21 * * * export GLADOS_COOKIE="koa:sess=xxx..."; cd /path/to/2026-glados-checkin && python3 checkin.py >> glados.log 2>&1
+30 21 * * * export GLADOS_COOKIE="gld:sess=xxx..."; cd /path/to/2026-glados-checkin && python3 checkin.py >> glados.log 2>&1
 ```
 
 > 💡 **提示**：如果配置了多个环境变量，建议写一个 shell 脚本来管理，避免 crontab 行过长。
@@ -1183,7 +1192,7 @@ cron-job.org 触发 GitHub Actions 时传：
           # 配置服务
           services.glados-checkin = {
             enable = true;
-            cookie = "koa:sess=xxx; koa:sess.sig=yyy";
+            cookie = "gld:sess=xxx; gld:sess.sig=yyy"; # 2026-09 新版；旧版 koa:sess 亦可兼容
 
             # 【可选】消息推送配置（按需配置）
             pushLevel = "all"; # 或 "fail_only"
@@ -1533,7 +1542,8 @@ cookie1&cookie2&cookie3
 | `flake.nix`             | Nix Flake 配置                              |
 | `flake.lock`            | Nix Flake 锁定文件                          |
 | `glados-checkin.nix`    | NixOS 服务模块定义                          |
-| `SYNC_GUIDE.md`         | Fork 用户同步上游更新指南                   |
+| `SYNC_GUIDE.md`         | Fork 用户同步上游更新指南（策略与决策）     |
+| `UPSTREAM_SYNC_RUNBOOK.md` | Fork 上游同步实战操作手册（fetch/合并/移植/推送） |
 | `images/`               | 教程截图                                    |
 
 ---
@@ -1548,6 +1558,13 @@ cookie1&cookie2&cookie3
 ---
 
 ## 📝 更新日志
+
+### v1.9.0 (2026-09-30) 🔐 适配 GLaDOS 2026-09 新版会话
+
+- ✅ 同步上游 `lankerr/2026-glados-checkin` 核心签到逻辑更新
+- ✅ 新增 `gld:sess` / `gld:sess.sig` 新版会话 Cookie 支持（`extract_cookie` / `validate_cookie` / `GLaDOS.__init__` 告警），兼容旧版 `koa:sess`
+- ✅ 新增 device-mismatch / 认证失败检测（`code==-2`、设备不匹配、`没有权限` 直接提示重新登录，停止无效重试）
+- ✅ 采用「保留包结构 + 移植关键补丁」策略同步上游，不丢失自定义功能
 
 ### v1.8.0 (2026-06-09) 📲 iOS 快捷指令联动
 
