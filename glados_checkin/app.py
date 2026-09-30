@@ -2447,30 +2447,53 @@ def is_checkin_success(message):
         return False
     return any(k in text for k in ['checkin', 'repeat', 'repeats', 'already', '已签到', '签到成功'])
 
+# GLaDOS 2026-09 起的会话使用 gld:sess / gld:sess.sig；旧版仍使用 koa:sess / koa:sess.sig
+CURRENT_SESSION_COOKIES = ('gld:sess', 'gld:sess.sig')
+LEGACY_SESSION_COOKIES = ('koa:sess', 'koa:sess.sig')
+
+
 def extract_cookie(raw: str):
-    """提取 Cookie，支持 Cookie-Editor 冒号格式"""
-    if not raw: return None
+    """提取 Cookie，支持请求头格式、Cookie-Editor JSON 导出与 JWT Token。"""
+    if not raw:
+        return None
     raw = raw.strip()
-    
-    # Cookie-Editor 格式 (koa:sess=xxx; koa:sess.sig=yyy)
-    if 'koa:sess=' in raw or 'koa:sess.sig=' in raw:
+    # 兼容 "Cookie: gld:sess=..." 这类带前缀的复制
+    if raw.lower().startswith('cookie:'):
+        raw = raw[7:].strip()
+
+    # 1. 直接是 gld/koa 会话 Cookie 请求头格式
+    if any(f'{name}=' in raw for name in CURRENT_SESSION_COOKIES + LEGACY_SESSION_COOKIES):
         return raw
-        
-    # JSON
-    if raw.startswith('{'):
+
+    # 2. Cookie-Editor 的 JSON 数组导出，或旧版 {"token": "..."} 格式
+    if raw.startswith(('{', '[')):
         try:
-            return 'koa.sess=' + json.loads(raw).get('token')
-        except: pass
-        
-    # JWT Token
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                pairs = []
+                for item in parsed:
+                    if not isinstance(item, dict):
+                        continue
+                    name = item.get('name')
+                    value = item.get('value')
+                    if name and value is not None:
+                        pairs.append(f'{name}={value}')
+                cookie = '; '.join(pairs)
+                return cookie or None
+            token = parsed.get('token') if isinstance(parsed, dict) else None
+            return f'koa:sess={token}' if token else None
+        except (json.JSONDecodeError, AttributeError, TypeError):
+            return None
+
+    # 3. JWT Token
     if raw.count('.') == 2 and '=' not in raw and len(raw) > 50:
         return 'koa:sess=' + raw
-        
-    # Standard
+
+    # 4. Standard
     return raw
 
 def validate_cookie(raw: str, index: int = 1) -> list:
-    """检测 Cookie 格式是否异常，返回警告列表"""
+    """检测 Cookie 格式是否异常，返回警告列表（同时支持 gld:sess 与 koa:sess）"""
     warnings = []
     if not raw:
         return [f"账号 {index}: Cookie 为空"]
@@ -2487,9 +2510,10 @@ def validate_cookie(raw: str, index: int = 1) -> list:
         warnings.append(f"账号 {index}: Cookie 首尾有多余引号")
         warnings.append(f"  👉 修复: 去掉首尾的 \" 或 ' 引号")
 
-    # 3. 检查是否包含必要字段
-    has_sess = 'koa:sess=' in raw or 'koa.sess=' in raw
-    has_sig = 'koa:sess.sig=' in raw
+    # 3. 检查是否包含必要字段（gld:sess 或 koa:sess 任一即可）
+    has_sess = ('gld:sess=' in raw or 'gld.sess=' in raw
+                or 'koa:sess=' in raw or 'koa.sess=' in raw)
+    has_sig = 'gld:sess.sig=' in raw or 'koa:sess.sig=' in raw
 
     if not has_sess:
         # 可能是纯 JWT Token 或其他格式，不算错误
@@ -2498,8 +2522,8 @@ def validate_cookie(raw: str, index: int = 1) -> list:
         elif raw.startswith('{'):
             pass  # JSON 格式
         else:
-            warnings.append(f"账号 {index}: 缺少 koa:sess 字段，格式可能不正确")
-            warnings.append(f"  👉 正确格式: koa:sess=长字符串; koa:sess.sig=短字符串")
+            warnings.append(f"账号 {index}: 缺少 gld:sess/koa:sess 字段，格式可能不正确")
+            warnings.append(f"  👉 正确格式: gld:sess=长字符串; gld:sess.sig=短字符串 (旧版为 koa:sess=...; koa:sess.sig=...)")
 
     # 4. 检查分号和空格
     if has_sess and ';' in raw:
@@ -2510,10 +2534,10 @@ def validate_cookie(raw: str, index: int = 1) -> list:
                 warnings.append(f"  👉 修复: 删除多余的分号和空格")
                 break
 
-    # 5. 检查是否缺少分号分隔
-    if has_sess and not has_sig and 'koa:sess.sig' not in raw:
-        warnings.append(f"账号 {index}: 缺少 koa:sess.sig 字段")
-        warnings.append(f"  👉 确保同时复制 koa:sess 和 koa:sess.sig 两个 Cookie")
+    # 5. 检查是否缺少签名字段
+    if has_sess and not has_sig and ('gld:sess.sig' not in raw and 'koa:sess.sig' not in raw):
+        warnings.append(f"账号 {index}: 缺少 gld:sess.sig/koa:sess.sig 字段")
+        warnings.append(f"  👉 确保同时复制 gld:sess 和 gld:sess.sig 两个 Cookie (旧版为 koa:sess)")
 
     # 6. 检查长度异常
     if len(raw) < 20:
@@ -2552,7 +2576,7 @@ def get_cookies():
         for w in all_warnings:
             log(f"   {w}")
         # 如果有严重问题（为空、缺字段），发送告警
-        severe = [w for w in all_warnings if '为空' in w or '缺少 koa:sess' in w or '长度过短' in w]
+        severe = [w for w in all_warnings if '为空' in w or ('缺少' in w and 'sess' in w) or '长度过短' in w]
         if severe:
             send_alert("🔒 Cookie 格式异常", "\n".join(all_warnings))
     else:
@@ -2572,6 +2596,11 @@ class GLaDOS:
         self.points_change = "?"
         self.exchange_info = ""
         self.plan = "?"
+
+        # 2026-09 起新版 GLaDOS 使用 gld:sess 会话；缺少完整的 gld:sess + gld:sess.sig 时
+        # 新版接口可能返回“没有权限”。旧版 koa:sess 仍可工作，但建议更新为完整 Cookie。
+        if 'gld:sess=' not in cookie or 'gld:sess.sig=' not in cookie:
+            log("⚠️ Cookie 未包含完整的 gld:sess 与 gld:sess.sig；2026-09 新版接口可能返回“没有权限”，建议更新为完整 Cookie")
         self.plans_list = []  # 存储兑换计划列表
         self.checkin_result = None  # 签到原始响应
         self.earned_points = None  # 本次签到获得积分
@@ -3616,15 +3645,23 @@ def main():
 
         # 1. Checkin
         res = g.checkin()
+        res_code = res.get('code') if isinstance(res, dict) else None
+        res_reason = str(res.get('reason', '')) if isinstance(res, dict) else ''
+        res_msg = str(res.get('message', '')) if isinstance(res, dict) else ''
 
-        # 检测 Cookie 是否过期/无效
+        # 检测 Cookie 是否过期/无效/设备不匹配（2026-09 认证恢复相关）
         if res is None:
             msg = "Cookie 已过期或网络异常"
             log(f"❌ 用户 {i}: 所有域名请求失败，Cookie 可能已过期")
             expired_cookies.append(i)
-        elif 'Unauthorized' in str(res) or 'please checkin via' in str(res):
-            msg = res.get('message', 'Unauthorized')
-            log(f"❌ 用户 {i}: Cookie 已过期 - {msg}")
+        elif res_code == -2 or 'device-mismatch' in res_reason \
+                or '没有权限' in res_msg or 'unauthorized' in res_msg \
+                or 'please checkin via' in res_msg:
+            if 'device-mismatch' in res_reason:
+                msg = "登录设备不匹配，请重新登录并更新完整 Cookie (gld:sess + gld:sess.sig)"
+            else:
+                msg = res_msg or 'Unauthorized'
+            log(f"❌ 用户 {i}: Cookie 已失效 - {msg}")
             expired_cookies.append(i)
         else:
             msg = res.get('message', 'Failure')
