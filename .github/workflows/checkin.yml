@@ -5,7 +5,7 @@ on:
   workflow_dispatch:  # 仅保留手动触发（定时由 cron-job.org 管理）
     inputs:
       mode:
-        description: '运行模式：checkin=签到，heartbeat=心跳监控，morning=早报，reminder=重要日提醒，actions_monitor=Actions监控，habit=习惯提醒'
+        description: '运行模式：checkin=签到，diagnose=只读诊断（仅验证 Cookie 可读取账号状态，不签到/不兑换/不推送），heartbeat=心跳监控，morning=早报，reminder=重要日提醒，actions_monitor=Actions监控，habit=习惯提醒'
         required: false
         default: 'checkin'
       habit_type:
@@ -76,6 +76,9 @@ jobs:
         env:
           # 必填
           GLADOS_COOKIE: ${{ secrets.GLADOS_COOKIE }}
+          # 必须与创建当前 gld:sess 会话的浏览器 User-Agent 一致，
+          # 否则新版接口会返回 device-mismatch（GitHub Vars 配置）
+          GLADOS_USER_AGENT: ${{ vars.GLADOS_USER_AGENT }}
           # 推送渠道（按需配置）
           PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
           SEND_KEY: ${{ secrets.SEND_KEY }}
@@ -214,6 +217,9 @@ jobs:
         env:
           # 必填
           GLADOS_COOKIE: ${{ secrets.GLADOS_COOKIE }}
+          # 必须与创建当前 gld:sess 会话的浏览器 User-Agent 一致，
+          # 否则新版接口会返回 device-mismatch（GitHub Vars 配置）
+          GLADOS_USER_AGENT: ${{ vars.GLADOS_USER_AGENT }}
           # 推送渠道（按需配置）
           PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
           SEND_KEY: ${{ secrets.SEND_KEY }}

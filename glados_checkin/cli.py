@@ -18,6 +18,13 @@ def run():
         from .app import main
 
         main()
+    elif run_mode in ("diagnose", "diagnose_only", "auth_check"):
+        # 只读诊断（上游 #23）：验证 Cookie 能否读取账号状态，
+        # 不签到、不兑换、不推送；全部账号通过则退出码 0。
+        import sys as _sys
+        from .app import diagnose_accounts, get_cookies
+
+        _sys.exit(diagnose_accounts(get_cookies()))
     elif run_mode in ("heartbeat", "check_heartbeat"):
         from .app import send_heartbeat_check
 

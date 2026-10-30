@@ -50,8 +50,19 @@ DOMAINS = [
     "https://glados.network",
 ]
 
+# 默认 User-Agent：与上游同步（2026-10 #19）。
+# 2026-09 起新版 gld:sess 会校验登录设备；如果 Cookie 是在别的浏览器里复制的，
+# 需要通过 GitHub Vars 配置 GLADOS_USER_AGENT 为“创建该会话的浏览器”的 UA，
+# 否则会触发 device-mismatch（服务端拒绝设备校验）。
+DEFAULT_USER_AGENT = (
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+    'AppleWebKit/537.36 (KHTML, like Gecko) '
+    'Chrome/120.0.0.0 Safari/537.36'
+)
+
+# 注意：User-Agent 不再写死在 HEADERS 里，改由 get_browser_headers()
+# 根据 GLADOS_USER_AGENT 动态生成（含配套 Sec-CH-UA* 头）。
 HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Content-Type': 'application/json;charset=UTF-8',
     'Accept': 'application/json, text/plain, */*',
 }
@@ -2447,6 +2458,109 @@ def is_checkin_success(message):
         return False
     return any(k in text for k in ['checkin', 'repeat', 'repeats', 'already', '已签到', '签到成功'])
 
+
+# ---- 认证/会话诊断工具（同步自上游 2026-10 #19 / #23）----
+
+def get_browser_headers():
+    """按创建会话的浏览器 UA 构造请求头（上游 #19）。
+
+    新版 GLaDOS 会校验 User-Agent 与 Sec-CH-UA* 客户端提示是否和登录会话
+    匹配；只改 UA 字符串而不改 Sec-CH-UA 头，仍会被判定为设备不匹配。
+    """
+    user_agent = os.environ.get("GLADOS_USER_AGENT", "").strip() or DEFAULT_USER_AGENT
+    headers = {'User-Agent': user_agent}
+
+    # Chrome/Chromium 浏览器会随请求附带 Sec-CH-UA 系列头，这里按 UA 重建，
+    # 保持与真实浏览器一致。非 Chromium UA（如 Firefox/Safari）不附带。
+    chrome = re.search(r'(?:Chrome|Chromium)/(\d+)', user_agent)
+    if chrome:
+        major = chrome.group(1)
+        if 'Macintosh' in user_agent:
+            platform = 'macOS'
+        elif 'Windows' in user_agent:
+            platform = 'Windows'
+        elif 'Android' in user_agent:
+            platform = 'Android'
+        elif 'Linux' in user_agent:
+            platform = 'Linux'
+        else:
+            platform = 'Unknown'
+
+        headers.update({
+            'Sec-CH-UA': (
+                f'"Chromium";v="{major}", '
+                f'"Google Chrome";v="{major}", '
+                '"Not_A Brand";v="99"'
+            ),
+            'Sec-CH-UA-Mobile': '?1' if 'Mobile' in user_agent else '?0',
+            'Sec-CH-UA-Platform': f'"{platform}"',
+        })
+
+    return headers
+
+
+def log_user_agent_configuration():
+    """提示当前 UA 配置状态；未配置时使用默认值（上游 #23）。"""
+    configured = bool(os.environ.get('GLADOS_USER_AGENT', '').strip())
+    log('浏览器 User-Agent: ' + ('已配置' if configured else '未配置，使用默认值'))
+
+
+def is_non_retryable_checkin_result(result):
+    """认证/设备类失败：重试无法修复，必须停止请求（上游 #19/#23）。
+
+    覆盖：code=-2、HTTP 401/403（req() 返回 http-auth-rejected）、
+    device-mismatch、没有权限/permission/unauthorized、
+    automated check-in detected（服务端明确拒绝自动化签到）、
+    please checkin via（要求走浏览器人工签到，本项目原有的失效判定）。
+    """
+    if not isinstance(result, dict):
+        return False
+    code = result.get('code')
+    reason = str(result.get('reason', '')).strip().lower()
+    message = str(result.get('message', '')).strip().lower()
+    return (
+        code == -2
+        or result.get('http_status') in (401, 403)
+        or reason == 'device-mismatch'
+        or '没有权限' in message
+        or 'permission' in message
+        or 'unauthorized' in message
+        or 'automated check-in detected' in message
+        or 'please checkin via' in message
+    )
+
+
+def summarize_checkin_failure(result):
+    """安全失败摘要（上游 #23）：固定标签 + 白名单元数据。
+
+    服务端原始响应可能包含邮箱等隐私内容或 HTML 错误页，绝不回显；
+    只输出确定非敏感的 code / http_status / reason。
+    """
+    if not isinstance(result, dict):
+        return '未收到有效 API 响应'
+
+    reason = str(result.get('reason', '')).strip().lower()
+    message = str(result.get('message', '')).strip().lower()
+    if reason == 'device-mismatch':
+        label = '服务端拒绝设备校验；请核对会话和 User-Agent 配置'
+    elif 'automated check-in detected' in message:
+        label = '服务端拒绝自动签到；请核对会话配置，仍失败时联系服务方'
+    elif is_non_retryable_checkin_result(result):
+        label = '服务端拒绝会话认证或访问'
+    else:
+        label = '签到失败'
+
+    details = []
+    code = result.get('code')
+    if type(code) is int and -999 <= code <= 999:
+        details.append(f'code={code}')
+    status = result.get('http_status')
+    if type(status) is int and 100 <= status <= 599:
+        details.append(f'http_status={status}')
+    if reason in ('device-mismatch', 'http-auth-rejected'):
+        details.append(f'reason={reason}')
+    return label + (f" [{', '.join(details)}]" if details else '')
+
 # GLaDOS 2026-09 起的会话使用 gld:sess / gld:sess.sig；旧版仍使用 koa:sess / koa:sess.sig
 CURRENT_SESSION_COOKIES = ('gld:sess', 'gld:sess.sig')
 LEGACY_SESSION_COOKIES = ('koa:sess', 'koa:sess.sig')
@@ -2562,10 +2676,21 @@ def get_cookies():
         log("❌ 未配置 GLADOS_COOKIE")
         return []
 
-    # 启动时执行 Cookie 格式检测
-    sep = '\n' if '\n' in raw else '&'
-    parts = [c for c in raw.split(sep) if c.strip()]
+    # Cookie-Editor 的 JSON 导出是一个完整文档（上游 #19）：
+    # 格式化产生的换行、以及 Cookie 值里的 & 都不是“多账号分隔符”，
+    # 必须先整体识别，否则 JSON 会被下面的切分逻辑切碎。
+    if raw.lstrip().startswith(('{', '[')):
+        cookie = extract_cookie(raw)
+        if not cookie:
+            log("❌ Cookie 看起来是 JSON 导出，但解析失败；请检查格式")
+            return []
+        parts = [cookie]
+    else:
+        # 多账号：按换行或 & 切分
+        sep = '\n' if '\n' in raw else '&'
+        parts = [c for c in raw.split(sep) if c.strip()]
 
+    # 启动时执行 Cookie 格式检测
     all_warnings = []
     for i, part in enumerate(parts, 1):
         warnings = validate_cookie(part, i)
@@ -2607,11 +2732,13 @@ class GLaDOS:
         self.points_history_detail = []  # 积分变化明细
         
     def req(self, method, path, data=None):
-        """带自动域名切换的请求"""
+        """带自动域名切换的请求（认证被拒时立即停止，上游 #23）"""
         for d in DOMAINS:
             try:
                 url = f"{d}{path}"
                 h = HEADERS.copy()
+                # 动态 UA + Sec-CH-UA*：必须与创建 gld:sess 会话的浏览器一致
+                h.update(get_browser_headers())
                 h['Cookie'] = self.cookie
                 h['Origin'] = d
                 h['Referer'] = f"{d}/console/checkin"
@@ -2624,8 +2751,17 @@ class GLaDOS:
                 if resp.status_code == 200:
                     self.domain = d # Remember working domain
                     return resp.json()
+                if resp.status_code in (401, 403):
+                    # 认证被明确拒绝：不能换备用域名重放（只会加深风控），
+                    # 响应体可能是 HTML 或含隐私内容，不回显。
+                    return {
+                        'http_status': resp.status_code,
+                        'reason': 'http-auth-rejected',
+                    }
+                log(f"⚠️ {d} 返回 HTTP {resp.status_code}")
             except Exception as e:
-                log(f"⚠️ {d} 请求失败: {e}")
+                # InvalidHeader 等请求异常的文本可能内嵌 Cookie 值，只打异常类名。
+                log(f"⚠️ {d} 请求失败: {type(e).__name__}")
                 continue
         return None
 
@@ -3621,12 +3757,50 @@ def format_summary(accounts):
         lines.append(f"{icon} {mask_email(acc['email'])} | 积分:{acc['points']} | 天数:{acc['days']}")
     return "\n".join(lines)
 
+def diagnose_accounts(cookies):
+    """只读诊断（同步自上游 #23）：仅查询登录状态，不签到、不兑换、不推送。
+
+    触发方式：RUN_MODE=diagnose 或 CHECKIN_DIAGNOSTIC_ONLY=true。
+    """
+    if not cookies:
+        log('❌ 未配置 GLADOS_COOKIE，无法诊断')
+        return 1
+    success_cnt = 0
+    log('🔎 只读诊断：仅查询登录状态，不签到、不兑换、不推送')
+    log_user_agent_configuration()
+    for i, cookie in enumerate(cookies, 1):
+        client = GLaDOS(cookie)
+        result = client.req('GET', '/api/user/status')
+        authenticated = (
+            isinstance(result, dict)
+            and result.get('code') == 0
+            and isinstance(result.get('data'), dict)
+            and bool(result['data'])
+        )
+        # 绝不打印响应体：可能包含邮箱等账号隐私数据。
+        if authenticated:
+            success_cnt += 1
+            log(f'✅ 账号 {i}: 登录状态查询成功')
+        elif is_non_retryable_checkin_result(result):
+            log(f'❌ 账号 {i}: 会话认证被拒绝；{summarize_checkin_failure(result)}')
+        else:
+            log(f'❌ 账号 {i}: 登录状态查询失败，请检查网络并重新登录更新 Cookie')
+    log('只读查询通过不代表签到设备校验通过；实际签到仍需匹配浏览器 User-Agent')
+    return 0 if success_cnt == len(cookies) else 1
+
+
 def main():
     log("🚀 2026 GLaDOS Checkin Starting...")
     cookies = get_cookies()
     if not cookies:
         send_alert("⚠️ GLaDOS 配置异常", "未配置 GLADOS_COOKIE，请检查 GitHub Secrets。")
         sys.exit(1)
+
+    log_user_agent_configuration()
+
+    # 只读诊断模式：验证 Cookie 能否读取账号状态，不执行任何写操作（上游 #23）
+    if env_flag("CHECKIN_DIAGNOSTIC_ONLY", False):
+        sys.exit(diagnose_accounts(cookies))
 
     # 加载历史数据
     data = load_data()
@@ -3645,35 +3819,34 @@ def main():
 
         # 1. Checkin
         res = g.checkin()
-        res_code = res.get('code') if isinstance(res, dict) else None
-        res_reason = str(res.get('reason', '')) if isinstance(res, dict) else ''
-        res_msg = str(res.get('message', '')) if isinstance(res, dict) else ''
 
-        # 检测 Cookie 是否过期/无效/设备不匹配（2026-09 认证恢复相关）
+        # 检测 Cookie 是否过期/无效/设备不匹配（判定逻辑同步上游 #19/#23，
+        # 新增 HTTP 401/403、permission、automated check-in detected）
+        auth_rejected = False
         if res is None:
             msg = "Cookie 已过期或网络异常"
             log(f"❌ 用户 {i}: 所有域名请求失败，Cookie 可能已过期")
             expired_cookies.append(i)
-        elif res_code == -2 or 'device-mismatch' in res_reason \
-                or '没有权限' in res_msg or 'unauthorized' in res_msg \
-                or 'please checkin via' in res_msg:
-            if 'device-mismatch' in res_reason:
-                msg = "登录设备不匹配，请重新登录并更新完整 Cookie (gld:sess + gld:sess.sig)"
-            else:
-                msg = res_msg or 'Unauthorized'
+        elif is_non_retryable_checkin_result(res):
+            # 认证被拒：用安全摘要替代原始 message，不回显服务端响应内容
+            auth_rejected = True
+            msg = summarize_checkin_failure(res)
             log(f"❌ 用户 {i}: Cookie 已失效 - {msg}")
             expired_cookies.append(i)
         else:
             msg = res.get('message', 'Failure')
 
         # 2. Get Info (Refresh data)
-        status_ok = g.get_status()
-        if not status_ok and res is not None:
-            log(f"⚠️ 用户 {i}: 获取状态失败，Cookie 可能已过期")
-            if i not in expired_cookies:
-                expired_cookies.append(i)
+        # 上游 #23 修复：认证被明确拒绝后，禁止对该账号继续任何后续请求
+        # （status/points 等），避免拿坏 Cookie 反复冲击服务端。
+        if not auth_rejected:
+            status_ok = g.get_status()
+            if not status_ok and res is not None:
+                log(f"⚠️ 用户 {i}: 获取状态失败，Cookie 可能已过期")
+                if i not in expired_cookies:
+                    expired_cookies.append(i)
 
-        g.get_points()
+            g.get_points()
 
         # 3. Log
         checkin_ok = is_checkin_success(msg)

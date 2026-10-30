@@ -275,6 +275,8 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | `EXCHANGE_BARK_LEVEL` | ❌ 否 | 兑换提醒 Bark 级别，默认 `timeSensitive`。                                |
 | `EXCHANGE_BARK_SOUND` | ❌ 否 | 兑换提醒铃声，默认 `bell`。                                               |
 | `PUSH_LEVEL`         | ❌ 否 | 推送级别：`all` (默认，每次均推送) 或 `fail_only` (仅有账号签到失败时推送) |
+| `GLADOS_USER_AGENT`  | ❌ 否 | 创建当前 `gld:sess` 会话的浏览器 User-Agent。2026-09 新版接口会校验登录设备，UA 不匹配会返回 device-mismatch 导致签到失败；在 GitHub 仓库 Settings → Secrets and variables → **Variables** 里新增 `GLADOS_USER_AGENT` 即可 |
+| `CHECKIN_DIAGNOSTIC_ONLY` | ❌ 否 | 设为 `true` 时只读诊断：仅验证 Cookie 能否查询账号状态，不签到、不兑换、不推送。等价于 `RUN_MODE=diagnose` |
 | `WEATHER_CITY`       | ❌ 否 | 天气城市，默认 `杭州`。例如 `北京`、`上海`                                |
 | `CHECKIN_HOURS`      | ❌ 否 | 自定义签到时间，默认 `09:30,21:30`。多个时间用逗号分隔                    |
 | `MONTHLY_GOAL`       | ❌ 否 | 每月签到目标天数，默认 `25`。用于月度目标追踪                              |
@@ -490,6 +492,7 @@ else:
 | Name              | Value              | 默认值                | 说明                         |
 | ----------------- | ------------------ | --------------------- | ---------------------------- |
 | `PUSH_LEVEL`      | `all` 或 `fail_only` | `all`               | 推送级别控制                 |
+| `GLADOS_USER_AGENT` | 浏览器 User-Agent（配在 **Variables**） | 内置默认值 | 必须与创建 `gld:sess` 会话的浏览器一致，否则新版接口返回 device-mismatch |
 | `WEATHER_CITY`    | 城市名称           | `杭州`                | 天气城市                     |
 | `CHECKIN_HOURS`   | 时间，逗号分隔     | `09:30,21:30`         | 自定义签到时间               |
 | `MONTHLY_GOAL`    | 天数               | `25`                  | 每月签到目标天数             |
@@ -849,6 +852,9 @@ python3 -m glados_checkin
 
 # 可选：只运行心跳监控
 RUN_MODE=heartbeat python3 checkin.py
+
+# 可选：只读诊断 Cookie（不签到、不兑换、不推送）
+RUN_MODE=diagnose python3 checkin.py
 
 # 可选：只发送 Bark 每日早报（不需要 GLADOS_COOKIE）
 RUN_MODE=morning python3 checkin.py
@@ -1558,6 +1564,18 @@ cookie1&cookie2&cookie3
 ---
 
 ## 📝 更新日志
+
+### v1.10.0 (2026-10-30) 🔐 移植上游 2026-10 认证诊断修复（#19 / #23）
+
+- ✅ 同步上游 `lankerr/2026-glados-checkin` 至 `60e9d42`（仅移植逻辑，保留包结构）
+- ✅ `get_cookies()` 支持 Cookie-Editor JSON 导出：换行/`&` 不再把单个 JSON 文档误切成多账号
+- ✅ HTTP 401/403 视为认证被拒：立即停止、不再换备用域名重放，避免坏 Cookie 冲击服务端
+- ✅ 认证被拒后跳过该账号的状态/积分查询与兑换等全部后续请求（上游 issue #22）
+- ✅ 新增安全失败摘要 `summarize_checkin_failure()`：只输出白名单元数据（code/http_status/reason），不回显可能含邮箱等隐私的响应体
+- ✅ 请求异常日志只打异常类名，防止 `InvalidHeader` 等异常文本泄漏 Cookie
+- ✅ 补上 `GLADOS_USER_AGENT` 支持：UA 与 `Sec-CH-UA*` 客户端提示按登录浏览器动态生成（v1.9.0 同步时遗漏）
+- ✅ 新增只读诊断：`RUN_MODE=diagnose` 或 `CHECKIN_DIAGNOSTIC_ONLY=true`，仅验证 Cookie 可查询账号状态，不签到、不兑换、不推送
+- ✅ 失败判定新增 `automated check-in detected` / `permission` / HTTP 401/403；保留原有 `please checkin via` 判定
 
 ### v1.9.0 (2026-09-30) 🔐 适配 GLaDOS 2026-09 新版会话
 
