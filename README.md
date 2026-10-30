@@ -15,6 +15,7 @@
 | ✅ **2026年验证可用** | 经过实测，确认在2026年4月20日正常工作               |
 | ✅ **绝对可用**       | 修复了其他脚本失效的问题（token更新为glados.cloud） |
 | ✅ **新手友好**       | 全程图解，不会也能照着做                            |
+| ✅ **自带排查工具**   | Cookie 诊断、推送自检、失败原因速查，不用到处问人   |
 | ✅ **多渠道推送**     | 支持 Bark/Telegram/微信/钉钉/Server酱 多种推送渠道 |
 | ✅ **作者持续维护**   | 遇到问题提Issue，作者很乐意帮忙                     |
 
@@ -62,14 +63,15 @@
 - [💡 重要说明](#-重要说明)
 - [🔥 为什么你需要这个](#-为什么你需要这个)
 - [✨ 功能特点](#-功能特点)
-- [🛠 配置参数](#-配置参数环境变量)
+- [🛠 配置参数](#-配置参数-环境变量)
 - [📱 推送渠道说明](#-推送渠道说明)
+- [🔐 认证与诊断](#-认证与诊断)
 - [🚀 快速部署](#-快速部署)
-- [⭐ 推荐方案：cron-job.org 配置定时](#-推荐方案-cron-joborg-配置定时)
+- [⭐ 推荐方案：cron-job.org 配置定时](#-推荐方案cron-joborg-配置定时)
 - [💻 本地/独立服务器部署](#-本地独立服务器部署教程)
 - [🌅 Bark 独立每日早报](#-bark-独立每日早报)
-- [🌱 Bark 习惯提醒](#-bark-习惯提醒)
-- [📲 iOS 快捷指令联动](#-ios-快捷指令联动)
+- [🌱 Bark 习惯提醒](#bark-习惯提醒)
+- [📲 iOS 快捷指令联动](#ios-快捷指令联动)
 - [❄️ NixOS 服务配置](#️-nixos-服务配置)
 - [📊 推送效果预览](#-推送效果预览)
 - [❓ 常见问题](#-常见问题)
@@ -93,7 +95,7 @@
 >
 > **别担心！** 配置 cron-job.org 只需要额外 5 分钟，一次搞定永久有效。
 >
-> [👉 跳转查看 cron-job.org 配置教程](#-推荐方案-cron-joborg-配置定时)
+> [👉 跳转查看 cron-job.org 配置教程](#-推荐方案cron-joborg-配置定时)
 
 ---
 
@@ -197,6 +199,11 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | ☁️ **2026 API**         | 适配最新 glados.cloud API               |
 | 🍪 **gld:sess 新版会话** | 2026-09 起支持新版 `gld:sess`/`gld:sess.sig`，同时兼容旧版 `koa:sess` |
 | 🔐 **认证失败检测**     | 识别 `device-mismatch`/`没有权限`，停止无效重试并提示重新登录  |
+| 🧪 **只读诊断模式**     | `RUN_MODE=diagnose` 只验证 Cookie 有效性，不签到、不兑换、不推送 |
+| 🔔 **推送渠道自检**     | `RUN_MODE=notify_test` 给每个已配置渠道各发一条测试消息并汇总成败 |
+| 📡 **上游更新监控**     | `RUN_MODE=upstream` 上游仓库有新提交时 Bark 提醒，附移植指引 |
+| 🧭 **失败原因速查**     | Cookie 过期告警按账号附一行针对性的修复指引 |
+| 🍪 **JSON 导出直贴**    | 支持直接粘贴 Cookie-Editor 导出的完整 JSON，自动解析 |
 | 🔄 **智能域名切换**     | 自动尝试 cloud → rocks → network        |
 | 📋 **多账号支持**       | 一个配置管理多个 GLaDOS 账号            |
 | 🌍 **自定义天气城市**   | 通过环境变量配置天气城市                |
@@ -238,6 +245,7 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | **生活资讯** | 天气穿衣建议、假期倒计时、日出日落、今日头条、加密货币行情、健康提示、电影推荐、生活指数 |
 | **趣味内容** | 签到运势、土味情话、彩虹屁、星座运势、每日段子、脑筋急转弯、每日成语、今天吃什么、早安问候、世界问候语 |
 | **实用工具** | 签到小游戏、签到日记、自定义倒数日、签到成就系统、积分预测、周报月报、服务器状态、历史上的今天 |
+| **运维诊断** | `RUN_MODE=notify_test` 渠道自检、`RUN_MODE=upstream` 上游更新监控、失败原因速查指引（`diagnose` 只读诊断移植自上游 #23） |
 
 > 💡 完整的自定义功能列表和代码位置，请参考 [SYNC_GUIDE.md](SYNC_GUIDE.md)。
 
@@ -249,7 +257,7 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 
 | 变量名               | 必填  | 说明                                                                       |
 | -------------------- | ----- | -------------------------------------------------------------------------- |
-| `GLADOS_COOKIE`      | ✅ 是 | GLaDOS 的 Cookie。多个账号请用 `&` 或换行符分隔。                          |
+| `GLADOS_COOKIE`      | ✅ 是 | GLaDOS 的 Cookie。支持 `gld:sess=...; gld:sess.sig=...` 请求头格式、Cookie-Editor JSON 导出和纯 JWT。多个账号请用 `&` 或换行符分隔（JSON 导出只能一段=一个账号）。详见 [认证与诊断](#-认证与诊断) |
 | `PUSHPLUS_TOKEN`     | ❌ 否 | PushPlus 微信推送 Token。                                                  |
 | `TELEGRAM_BOT_TOKEN` | ❌ 否 | Telegram 机器人的 Token（例如 `123456:ABC-DEF1234...`）                    |
 | `TELEGRAM_CHAT_ID`   | ❌ 否 | 接收推送的 Telegram Chat ID                                                |
@@ -297,6 +305,27 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | `*_SHORTCUT_INPUT` | ❌ 否 | 快捷指令 input 参数，例如 `text`。                                    |
 | `*_SHORTCUT_TEXT` | ❌ 否 | 传给快捷指令的文本内容。                                               |
 
+### 高级微调变量（一般不用改）
+
+以下变量都有合理默认值，只有需要精细控制通知文案长度、分级或临时关闭某类任务时才配置（Actions 部署请配到 **Secrets**，workflow 已全部接线；本地/服务器部署用环境变量即可）：
+
+| 变量 | 默认值 | 说明 |
+| ---- | ------ | ---- |
+| `BARK_EVENT_BODY_LIMIT` | `480` | Bark 事件类推送（兑换/心跳等）锁屏正文长度上限 |
+| `BARK_LEVEL_LOW_DAYS` | `timeSensitive` | 剩余天数低于 `BARK_LOW_DAYS` 时使用的通知级别 |
+| `HEARTBEAT_FORCE` | `false` | 手动测试心跳用，填 `true` 忽略时间窗口直接检查 |
+| `HABIT_ENABLED` / `ACTIONS_MONITOR_ENABLED` / `UPSTREAM_MONITOR_ENABLED` | `true` | 设为 `false` 可临时关闭对应独立任务 |
+| `MORNING_BARK_BODY_LIMIT` / `MORNING_BARK_COPY_LIMIT` | `1200` | 早报正文 / 长按复制的字符上限 |
+| `HABIT_BARK_BODY_LIMIT` / `HABIT_BARK_COPY_LIMIT` | `800` | 习惯提醒正文 / 复制上限 |
+| `IMPORTANT_DAY_BARK_BODY_LIMIT` / `IMPORTANT_DAY_BARK_COPY_LIMIT` | `1200` | 重要日提醒正文 / 复制上限 |
+| `ACTIONS_MONITOR_BARK_BODY_LIMIT` / `ACTIONS_MONITOR_BARK_COPY_LIMIT` | `1200` | Actions 监控正文 / 复制上限 |
+| `IMPORTANT_DAY_TITLE` | 自动 | 覆盖重要日提醒标题 |
+| `IMPORTANT_DAY_DAYS` | `30,7,3,1,0` | `IMPORTANT_DAY_REMINDER_DAYS` 的别名 |
+| `IMPORTANT_DAY_BARK_LEVEL_{URGENT,SOON,EARLY}` | `timeSensitive` / `active` / `passive` | 重要日按临近程度分级 |
+| `IMPORTANT_DAY_BARK_SOUND_{URGENT,SOON,EARLY}` | `alarm` / `bell` / `birdsong` | 重要日按临近程度配铃声 |
+| `ACTIONS_MONITOR_LEVEL_ERROR` / `ACTIONS_MONITOR_SOUND_ERROR` | `timeSensitive` / `alarm` | 监控 API 自身出错时的提醒级别 |
+| `GLADOS_RUN_MODE` | 空 | `RUN_MODE` 的别名，某些环境不便用 `RUN_MODE` 时替代 |
+
 > 💡 **推送渠道可自由组合**：你可以同时配置多个推送渠道，签到结果会同时推送到所有已配置的渠道。详见 [推送渠道说明](#-推送渠道说明)。
 
 ---
@@ -316,6 +345,253 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 > 💡 **推荐**：iPhone 用户优先选 **Bark**（免费、原生通知、支持角标/声音/跳转/复制/分级提醒）；跨平台优先选 **Telegram**。PushPlus 是否适合取决于它当前的套餐和预算。
 >
 > 所有渠道的核心内容一致，PushPlus 和 Telegram 支持 HTML 美化，Server酱和钉钉使用 Markdown 格式，Bark 使用短摘要 + 原生通知增强。
+
+---
+
+## 🔐 认证与诊断
+
+> 本章是 2026-09 之后**最容易踩坑**的部分，第一次配置失败请先读完这里再提 Issue。
+
+### 30 秒速查：我该做什么？
+
+| 现象 | 原因 | 解决 |
+| ---- | ---- | ---- |
+| 推送显示「设备校验失败」/ `device-mismatch` | Cookie 与运行环境的浏览器指纹不一致 | 配置 [`GLADOS_USER_AGENT`](#-设备校验失败怎么办) |
+| 推送显示「会话被拒绝(401/403)」 | Cookie 过期或被官方注销 | 重新登录导出 Cookie，更新 `GLADOS_COOKIE` |
+| 推送显示 `please checkin via https://glados.cloud` | 脚本 token 过旧或官方要求人工签到 | 用本项目（token 已改为 `glados.cloud`）；仍失败则人工签到一次 |
+| 完全没收到推送 | 渠道没配对 | 跑一次 [`RUN_MODE=notify_test`](#-推送渠道自检notify_test) |
+| 不知道 Cookie 到底有没有效 | — | 跑一次 [`RUN_MODE=diagnose`](#-只读诊断diagnose) |
+| 上游修了新 bug 却不知道 | — | 加一个 [`RUN_MODE=upstream`](#-上游更新监控upstream) 定时任务 |
+
+### 🍪 Cookie 怎么获取最稳（三种格式都支持）
+
+**方式一：Cookie-Editor「导出 JSON」——最推荐，不会漏字段**
+
+1. 在 [glados.cloud](https://glados.cloud) 登录并打开 Console 页面
+2. 点浏览器工具栏的 Cookie-Editor 图标 → 底部 **Export** → 选择 **JSON** 格式
+3. 全选复制，直接把**整段 JSON 粘进 `GLADOS_COOKIE`**（GitHub Secret 和本地环境变量都可以）
+
+```json
+[
+  {"domain": ".glados.cloud", "expirationDate": 1790000000, "hostOnly": false,
+   "httpOnly": true, "name": "gld:sess", "sameSite": "lax", "secure": true,
+   "session": false, "storeId": null, "value": "eyJ1c2VySWQiOi..."},
+  {"domain": ".glados.cloud", "name": "gld:sess.sig", "httpOnly": true,
+   "value": "abcdef123456"}
+]
+```
+
+程序会自动把 JSON 里的 `name`/`value` 拼成请求头格式。**JSON 内部的换行和 `&` 不会被当成多账号分隔符**——整段 JSON 永远只算**一个**账号，这一点不用担心格式化工具把 Cookie 拆成多行。
+
+**方式二：手动拼两个字段（老写法，仍有效）**
+
+```text
+gld:sess=你的长字符串; gld:sess.sig=你的短字符串
+```
+
+> ⚠️ 分号 `;` 后面必须有一个空格；两个字段都要在。缺 `gld:sess.sig` 时程序会打警告，新版接口可能返回「没有权限」。
+
+**方式三：`Copy value` 只复制单条** —— 会缺 `gld:sess.sig`，程序会告警提示，不推荐。
+
+**多账号怎么写**（非 JSON 格式时）：
+
+| 分隔符 | 写法 | 适用 |
+| ------ | ---- | ---- |
+| 换行 | 每行一个 Cookie | 最清晰，推荐 |
+| `&` | `cookie1&cookie2` | 单行紧凑写法 |
+
+> ⚠️ **JSON 格式只支持单个账号**。整段 JSON 永远只解析出 1 个账号；把两段 JSON 用换行或 `&` 拼在一起会解析失败（日志提示 `Cookie 看起来是 JSON 导出，但解析失败`）。
+>
+> 需要**多账号**时请改用「手动拼两个字段」的写法，用换行或 `&` 分隔：
+>
+> ```text
+> gld:sess=AAA长串; gld:sess.sig=aaa短串
+> gld:sess=BBB长串; gld:sess.sig=bbb短串
+> ```
+>
+> 或者在 Cookie-Editor 里分别导出两个账号的 JSON，各自粘到不同仓库/不同 Secret。
+
+### 📱 设备校验失败怎么办
+
+对应日志/推送里的 `device-mismatch` 提示。
+
+**原理**：2026-09 起 GLaDOS 新版接口不只验 Cookie，还会核对「这个 `gld:sess` 会话是谁创建的」。服务端记录了创建会话时浏览器的 **User-Agent**，签到请求带的 UA 与它不匹配就返回 `device-mismatch`——**重试一万次也不会成功**，所以本项目遇到它会立刻停止，不再浪费请求。
+
+```text
+浏览器（登录成功，创建 gld:sess）  →  服务端记下 UA_A
+GitHub Actions（Python 脚本签到）  →  请求带 UA_B
+UA_A ≠ UA_B  →  ❌ device-mismatch
+```
+
+**解决**：把**复制 Cookie 那个浏览器**的 UA 配成 `GLADOS_USER_AGENT`。
+
+获取自己的 UA（任选一种）：
+
+- 浏览器打开 <https://www.whatismybrowser.com/detect/what-is-my-user-agent/> 直接复制
+- 或按 F12 → Console 输入 `navigator.userAgent` 回车，复制引号内的内容
+- Edge / Chrome / 各类国产浏览器**UA 各不相同**，必须用登录 GLaDOS 的那个浏览器
+
+在 GitHub 上配置（⚠️ **注意位置**）：
+
+1. 仓库 **Settings** → **Secrets and variables** → **Actions**
+2. 切到上方的 **Variables** 标签（**不是** New repository secret！）
+3. 点 **New repository variable**，Name 填 `GLADOS_USER_AGENT`，Value 粘贴完整 UA
+4. 保存后重新 Run workflow 即可
+
+本地/服务器部署写法：
+
+```bash
+# UA 里含空格、括号、分号，务必用双引号整体包起来
+export GLADOS_USER_AGENT="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36 Edg/131.0.0.0"
+```
+
+> 💡 **只改 UA 字符串不够**：新版接口还会核对 `Sec-CH-UA` 系列 Client Hints 头。程序会按你填的 UA 自动重建这些头（Chromium 内核浏览器才附带；Firefox/Safari 的 UA 不会附带，与真实浏览器行为一致），所以你只需要填 `GLADOS_USER_AGENT` 一项。
+>
+> 💡 不配置也能跑：脚本内置一个默认 UA（`Windows NT 10.0; Win64; x64` 的 Chrome/120），运气好正好匹配就无需处理；**只有收到 device-mismatch 才需要配**。
+>
+> ⚠️ 换了浏览器、或浏览器自动升级了版本号，UA 会变，需要回来更新这个 Variable。
+>
+> ⚠️ 手机浏览器也能登录 GLaDOS：如果 Cookie 来自手机，就把手机上那个浏览器的 UA 填进去（可用"请求桌面网站"关掉后的 UA 为准，含 `Mobile` 标记，程序会自动带上 `Sec-CH-UA-Mobile: ?1`）。
+
+### 🧪 只读诊断：`diagnose`
+
+只查登录状态、**绝不签到、绝不兑换、绝不推送**，也不打印任何账号隐私（邮箱等）。适合「Cookie 到底还能不能用」的确认。
+
+**GitHub Actions**：Actions → Run workflow → mode 选 `diagnose`
+
+**本地**：
+
+```bash
+# 只读诊断，退出码 0=全部账号可读取，1=有账号失败
+RUN_MODE=diagnose python3 checkin.py
+
+# 等价写法（给只想用环境变量的人）
+CHECKIN_DIAGNOSTIC_ONLY=true python3 checkin.py
+```
+
+日志长这样：
+
+```text
+[2026-10-30 09:12:03] 🔎 只读诊断：仅查询登录状态，不签到、不兑换、不推送
+[2026-10-30 09:12:03] 浏览器 User-Agent: 已配置
+[2026-10-30 09:12:05] ✅ 账号 1: 登录状态查询成功
+[2026-10-30 09:12:07] ❌ 账号 2: 会话认证被拒绝；服务端拒绝设备校验；请核对会话和 User-Agent 配置 [code=-2, reason=device-mismatch]
+```
+
+> ⚠️ **重要认知**：诊断通过 ≠ 签到一定通过。诊断只验证「会话可读」，签到还要过设备校验这一关。日志末尾会重复提醒这一点。
+
+### 🔔 推送渠道自检：`notify_test`
+
+新配了一个渠道、或者怀疑推送掉了，先跑它。给**每个已配置渠道**（PushPlus / Server酱 / Telegram / 钉钉 / Bark）各发一条测试消息，最后打印汇总。不需要 `GLADOS_COOKIE`。
+
+**GitHub Actions**：Actions → Run workflow → mode 选 `notify_test`
+
+**本地**：
+
+```bash
+RUN_MODE=notify_test python3 checkin.py
+```
+
+```text
+[2026-10-30 09:15:01] 🔔 推送渠道自检开始（只发消息，不签到、不读取 Cookie）...
+[2026-10-30 09:15:05] 📱 自检结果: ✅ PushPlus | ✅ Telegram | ❌ Server酱 | ✅ 钉钉 | ✅ Bark
+[2026-10-30 09:15:05] ⚠️ 1/5 个渠道失败，请检查对应 Secrets 配置与网络可达性
+```
+
+全部通过时末尾是 `✅ 全部 5 个已配置渠道自检通过`；某个渠道抛网络异常时会先打一行 `❌ Telegram 自检异常: ConnectionError`（只打异常类名，不泄漏 token）。
+
+> 💡 自检走的是和真实签到**完全相同**的发送函数，所以「自检成功」就等于真实推送通路没问题；退出码 0 全通过、1 有失败，方便脚本判断。
+>
+> 💡 没配任何渠道时会直接报错退出，提醒你至少配一个。
+
+### 📡 上游更新监控：`upstream`
+
+本项目是 [lankerr/2026-glados-checkin](https://github.com/lankerr/2026-glados-checkin) 的 fork，同步策略是「看上游改了什么、把逻辑移植过来」。**上游修了认证/接口问题时，你未必知道**——这个任务就是解决这个信息差。
+
+**GitHub Actions**：Actions → Run workflow → mode 选 `upstream`
+
+**cron-job.org** 建议每天早上一次（如 08:00）：
+
+```json
+{ "ref": "main", "inputs": { "mode": "upstream" } }
+```
+
+行为：
+
+- 发现上游 `main` 有新提交 → Bark 提醒，附 commit 链接、标题、提交时间
+- **首次运行只记录基线，不推送**（不然一开就刷屏）
+- 同一个 commit 不重复提醒
+- 上游 API 挂掉 / 限流 / 仓库改名 → 安全跳过，不误报
+
+推送长这样（标题 + 正文）：
+
+```text
+上游更新: 2026-glados-checkin 有新提交
+
+📦 上游仓库有新提交，可能需要移植修复
+
+最新 commit: b3f1c2d4
+信息: fix: adapt session validation for glados.cloud (2026-10)
+时间: 2026-10-30 16:42:05
+
+操作提示: 按 UPSTREAM_SYNC_RUNBOOK.md 评估并移植；若涉及认证/接口修复（参考 #19/#23），优先处理
+```
+
+日志侧的关键输出：
+
+```text
+[2026-10-30 08:00:12] 📡 上游更新监控开始...
+[2026-10-30 08:00:13]    上游: lankerr/2026-glados-checkin
+[2026-10-30 08:00:13]    最新提交: b3f1c2d4 fix: adapt session validation...
+[2026-10-30 08:00:13] ✅ 已记录基线 commit b3f1c2d4，后续有新提交才会提醒
+```
+
+可选配置（配到 **Secrets**，workflow 里已接线 `${{ secrets.UPSTREAM_* }}`；配在 Variables 不会生效）：
+
+| 变量 | 默认值 | 说明 |
+| ---- | ------ | ---- |
+| `UPSTREAM_MONITOR_REPO` | `lankerr/2026-glados-checkin` | 想跟踪别的 fork 时改这里 |
+| `UPSTREAM_MONITOR_TOKEN` | 自动复用 | 独立限流 token；不设则依次取 `ACTIONS_MONITOR_TOKEN` → `GH_TOKEN` → `GITHUB_TOKEN` |
+| `UPSTREAM_BARK_LEVEL` | `active` | 提醒级别 |
+| `UPSTREAM_BARK_SOUND` | `birdsong` | 铃声 |
+| `UPSTREAM_GROUP_SUFFIX` | `上游` | Bark 分组后缀 |
+| `UPSTREAM_MONITOR_ENABLED` | `true` | 设为 `false` 可临时关闭 |
+
+> 💡 提醒依赖 `BARK_KEY`；没配 Bark 时日志会说明并跳过推送（`⚠️ 未配置 BARK_KEY，上游更新仅输出日志`）。
+
+### 🧭 失败原因速查
+
+Cookie 过期告警的末尾，现在会**按账号**附一行针对性的下一步动作（不是泛泛的「请更新 Cookie」）：
+
+| 失败类型 | 告警里的指引 |
+| -------- | ------------ |
+| `device-mismatch` | 把复制该 Cookie 的浏览器 UA 配到 `GLADOS_USER_AGENT`，重跑签到 |
+| `401` / `403` | 重新登录 glados.cloud，Cookie-Editor 导出完整 `gld:sess` + `gld:sess.sig`，先用 `diagnose` 验证 |
+| `Automated check-in detected` | 先更新 Cookie 并匹配 UA；仍失败说明官方收紧策略，需人工签到或联系服务方 |
+| `please checkin via ...` | 官方要求浏览器人工签到，同上 |
+| `code=-2` / `没有权限` | 更新 Secrets 里的 `GLADOS_COOKIE`，用 `diagnose` 验证 |
+| 所有域名请求失败 | 检查网络连通性；确认官方域名可达，稍后由重试兜底 |
+| 其他未识别 | 看 Actions 日志定位，必要时单独 `diagnose` |
+
+> 💡 另外：遇到 401/403 这类认证拒绝，程序**不会再换域名重放请求**（认证失败时重放到 rocks/network 毫无意义，还可能触发官方风控），日志里会直接说明拒绝原因。
+
+### 🎛 全部运行模式与别名
+
+`RUN_MODE`（或别名 `GLADOS_RUN_MODE`）不区分大小写，`-` 会自动当作 `_`。除主名外还有别名，在 Actions 的 mode 输入框里填别名同样有效：
+
+| 主名 | 可用别名 | 需要 Cookie | 会签到 | 说明 |
+| ---- | -------- | ----------- | ------ | ---- |
+| `checkin` | `glados`、`glados_checkin` | ✅ | ✅ | 默认模式 |
+| `diagnose` | `diagnose_only`、`auth_check` | ✅ | ❌ | 只读诊断 |
+| `notify_test` | `push_test`、`test_push` | ❌ | ❌ | 推送渠道自检 |
+| `upstream` | `upstream_monitor` | ❌ | ❌ | 上游更新监控 |
+| `heartbeat` | `check_heartbeat` | ❌ | ❌ | 签到心跳检查 |
+| `morning` | `morning_report`、`daily_report`、`bark_morning` | ❌ | ❌ | Bark 每日早报 |
+| `reminder` | `important_day`、`important_days`、`day_reminder` | ❌ | ❌ | 智能重要日提醒 |
+| `actions_monitor` | `action_monitor`、`github_actions`、`actions` | ❌ | ❌ | Actions 运行监控 |
+| `habit` | `habit_reminder`、`bark_habit` | ❌ | ❌ | 习惯提醒 |
+
+填错名字会直接报 `Unknown RUN_MODE: xxx` 并退出，不会静默跳过。
 
 ---
 
@@ -415,7 +691,9 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 
 #### 2.3 组合 Cookie（重要！）
 
-将两个值按以下格式组合，**注意格式必须完全正确**。2026-09 起新版接口要求完整的 `gld:sess` + `gld:sess.sig`：
+**最省事的做法**：直接在 Cookie-Editor 里点 **Export → JSON**，把导出的**整段 JSON 原样粘进 Secret**，程序会自动解析，不用手动拼格式。
+
+如果手动拼两个值，2026-09 起新版接口要求完整的 `gld:sess` + `gld:sess.sig`：
 
 ```text
 gld:sess=你的长字符串; gld:sess.sig=你的短字符串
@@ -517,6 +795,8 @@ else:
 
 > 💡 至少配置一个推送渠道，否则签到结果只在 Actions 日志中可见。
 
+> ⚠️ **别忘了 Variables**：如果签到返回 `device-mismatch`，需要切到 **Variables** 标签新增 `GLADOS_USER_AGENT`（不是 Secret！）。详见 [认证与诊断](#-认证与诊断)。
+
 ---
 
 ### 第四步：获取推送 Token（可选）📱
@@ -569,16 +849,10 @@ else:
 <details>
 <summary><b>Bark 推送（iOS 推荐）</b></summary>
 
-1. 在 App Store 搜索并下载 **Bark** 应用
+1. 在 App Store 搜索并下载 **Bark** 应用（[App Store 链接](https://apps.apple.com/app/bark/id1403753865)）
 
-![Bark 应用](images/bark-app.png)
-
-2. 打开 Bark 应用，首页会显示你的 **Key**（类似 `abc123def456` 的字符串）
-
-![Bark Key](images/bark-key.png)
-
-3. 复制这个 Key
-4. 将 Key 添加到 GitHub Secrets，Name 填 `BARK_KEY`
+2. 打开 Bark 应用，首页最上方会显示你的 **Key**（类似 `abc123def456` 的字符串），长按即可复制
+3. 将 Key 添加到 GitHub Secrets，Name 填 `BARK_KEY`
 
 只配置 `BARK_KEY` 就可以使用增强版默认策略：
 
@@ -638,11 +912,13 @@ else:
 3. 点击左侧的 **GLaDOS 2026 Checkin**
 4. 点击右侧 **Run workflow** 按钮手动测试一次
 
+> 💡 **建议顺序**：先跑 `mode=notify_test` 确认推送渠道都通，再跑 `mode=diagnose` 确认 Cookie 有效，最后跑默认的 `mode=checkin`。三步各看一眼日志，问题能在 1 分钟内定位。
+
 ![启用 Actions](images/workflow.png)
 
 > [!IMPORTANT]
 >
-> 由于 GitHub Actions 对新仓库的定时任务有限制（[详见说明](#-为什么-github-actions-定时不可靠)），我们推荐使用 **cron-job.org** 这项免费服务来触发签到。
+> 由于 GitHub Actions 对新仓库的定时任务有限制（[详见说明](#️-为什么-github-actions-定时不可靠)），我们推荐使用 **cron-job.org** 这项免费服务来触发签到。
 
 ---
 
@@ -655,6 +931,7 @@ else:
 | 时间 | 任务 | Raw Body |
 |------|------|----------|
 | **07:30** | Bark 每日早报 | `{ "ref": "main", "inputs": { "mode": "morning" } }` |
+| **08:00** | 上游更新监控（可选） | `{ "ref": "main", "inputs": { "mode": "upstream" } }` |
 | **09:30** | GLaDOS 早签到 | `{ "ref": "main", "inputs": { "mode": "checkin" } }` |
 | **09:45** | GLaDOS 早签到心跳 | `{ "ref": "main", "inputs": { "mode": "heartbeat" } }` |
 | **10:30** | Bark 喝水提醒 | `{ "ref": "main", "inputs": { "mode": "habit", "habit_type": "water" } }` |
@@ -665,7 +942,7 @@ else:
 | **22:05** | Bark GitHub Actions 监控 | `{ "ref": "main", "inputs": { "mode": "actions_monitor" } }` |
 | **23:20** | Bark 睡觉提醒 | `{ "ref": "main", "inputs": { "mode": "habit", "habit_type": "sleep" } }` |
 
-> 💡 `mode=morning`、`mode=reminder`、`mode=actions_monitor` 和 `mode=habit` 都是独立 Bark 任务，不会读取 `GLADOS_COOKIE`，也不会执行签到。
+> 💡 `mode=morning`、`mode=reminder`、`mode=actions_monitor`、`mode=upstream` 和 `mode=habit` 都是独立任务，不会读取 `GLADOS_COOKIE`，也不会执行签到。
 
 ### 配置步骤
 
@@ -901,6 +1178,9 @@ RUN_MODE=habit HABIT_TYPE=water python3 checkin.py
 | `reminder` | Bark 智能重要日提醒 | 不需要 | 不会 |
 | `actions_monitor` | Bark GitHub Actions 监控 | 不需要 | 不会 |
 | `habit` | Bark 习惯提醒 | 不需要 | 不会 |
+| `upstream` | 上游仓库更新监控（Bark 提醒） | 不需要 | 不会 |
+| `notify_test` | 推送渠道自检 | 不需要 | 不会 |
+| `diagnose` | Cookie 只读诊断 | 需要 | 不会 |
 
 推荐在 cron-job.org 里触发 GitHub Actions 时传：
 
@@ -1371,7 +1651,7 @@ cron-job.org 触发 GitHub Actions 时传：
 | **09:30**        | 早间签到 |
 | **21:30**        | 晚间签到 |
 
-> 💡 **重要**：请使用 [cron-job.org](#-推荐方案-cron-joborg-配置定时) 配置定时任务。GitHub Actions 的 schedule 功能对新仓库不可靠，可能不会自动触发！
+> 💡 **重要**：请使用 [cron-job.org](#-推荐方案cron-joborg-配置定时) 配置定时任务。GitHub Actions 的 schedule 功能对新仓库不可靠，可能不会自动触发！
 
 ---
 
@@ -1404,7 +1684,7 @@ cron-job.org 触发 GitHub Actions 时传：
 - [Discussion #185355](https://github.com/orgs/community/discussions/185355) - 新仓库定时任务不运行
 - [Discussion #185212](https://github.com/orgs/community/discussions/185212) - scheduled workflow 从不触发
 
-[🔝 回到开头了解推荐方案](#-推荐方案-cron-joborg-配置定时)
+[🔝 回到开头了解推荐方案](#-推荐方案cron-joborg-配置定时)
 
 </details>
 
@@ -1469,13 +1749,21 @@ GitHub API 要求必须指定分支名。
 <details>
 <summary><b>Q: 支持多个账号吗？</b></summary>
 
-支持！用英文符号 `&` 分隔多个 Cookie：
+支持！用**换行**或英文符号 `&` 分隔多个 Cookie：
 
 ```text
 cookie1&cookie2&cookie3
 ```
 
+```text
+# 或者每行一个，更清晰
+gld:sess=AAA; gld:sess.sig=aaa
+gld:sess=BBB; gld:sess.sig=bbb
+```
+
 签到后会收到多账号汇总报告，方便一目了然。
+
+> ⚠️ 注意：如果你用的是 Cookie-Editor 的 **JSON 导出**，一段 JSON 只代表一个账号，不能拼接多个（详见 [Cookie 怎么获取最稳](#-cookie-怎么获取最稳三种格式都支持)）。多账号请改用上面的 `gld:sess=...; gld:sess.sig=...` 写法。
 
 </details>
 
@@ -1495,6 +1783,74 @@ cookie1&cookie2&cookie3
 1. 点击失败的运行记录查看详细日志
 2. 检查 Cookie 格式是否正确
 3. 如果还是不行，欢迎提 Issue！
+
+</details>
+
+<details>
+<summary><b>Q: 签到返回 device-mismatch / 「设备校验失败」怎么办？</b></summary>
+
+新版 GLaDOS 会核对「Cookie 是在哪个浏览器创建的」和「签到请求带的 User-Agent」是否一致，不一致就拒绝，**重试也无法修复**。
+
+解决：把**复制 Cookie 的那个浏览器**的 User-Agent 配到 GitHub **Variables**（注意是 Variables 标签，不是 Secrets），名字叫 `GLADOS_USER_AGENT`。
+
+获取 UA：浏览器打开 whatismybrowser.com/detect/what-is-my-user-agent，或按 F12 在 Console 输入 `navigator.userAgent`。
+
+完整图解步骤见 [认证与诊断 → 设备校验怎么办](#-设备校验失败怎么办)。
+
+</details>
+
+<details>
+<summary><b>Q: 收到 401 / 403 拒绝，为什么不再自动换域名重试了？</b></summary>
+
+这是**故意的**。认证被拒绝时，把同一个 Cookie 重放到 rocks / network 等备用域名毫无意义（账号在任何域名都一样被拒），反而会短时间内发出多次被拒请求、可能触发官方风控。所以现在遇到 401/403 直接停手并在日志里告诉你原因。
+
+正确动作：重新登录 [glados.cloud](https://glados.cloud) 导出新 Cookie（推荐 Cookie-Editor 的 JSON 导出整段粘贴），用 `mode=diagnose` 验证通过后再跑签到。
+
+</details>
+
+<details>
+<summary><b>Q: 推送一条都没收到，怎么快速排查？</b></summary>
+
+1. Actions → Run workflow → mode 选 `notify_test` 跑一次，日志会逐渠道告诉你成功还是失败
+2. 没配任何渠道时它会直接报错，提示至少配一个
+3. 检查 `PUSH_LEVEL` 是否被设成了 `fail_only`（签到成功时就不推送了）
+
+详见 [认证与诊断 → 推送渠道自检](#-推送渠道自检notify_test)。
+
+</details>
+
+<details>
+<summary><b>Q: Cookie-Editor 导出的 JSON 能直接粘进 Secret 吗？</b></summary>
+
+可以，而且是**最推荐**的方式。整段 JSON（`[` 或 `{` 开头）会被自动识别并解析成 `gld:sess=...; gld:sess.sig=...`，JSON 里的换行和 `&` 不会被误当成多账号分隔符。
+
+只有非 JSON 格式才按换行 / `&` 切分多账号。
+
+详见 [认证与诊断 → Cookie 怎么获取最稳](#-cookie-怎么获取最稳三种格式都支持)。
+
+</details>
+
+<details>
+<summary><b>Q: Telegram 推送配好了却不发消息？</b></summary>
+
+按顺序检查：
+
+1. **Bot Token** 格式形如 `123456:ABC-DEF...`，来自 [@BotFather](https://t.me/BotFather)，注意别把别人的 token 或带空格换行的复制进来
+2. **Chat ID** 必须是**你自己的数字 ID**（如 `8943519063`），不是机器人 ID；可用 [@userinfobot](https://t.me/userinfobot) 查询，或访问 `https://api.telegram.org/bot<你的Token>/getUpdates` 从返回里看 `chat.id`
+3. **必须先主动给机器人发过一条消息**（点 Start 也行），否则机器人无法向你推送
+4. GitHub Actions 的服务器在境外，直连 `api.telegram.org` 通常没问题；如果是本地/自建服务器跑，请确认能访问 Telegram API
+5. 跑一次 `mode=notify_test`，日志会明确告诉你 Telegram 这一步是成功还是失败
+
+</details>
+
+<details>
+<summary><b>Q: 怎么知道上游修了新问题、我该怎么跟进？</b></summary>
+
+在 cron-job.org 加一个每天一次的 `mode=upstream` 任务（推荐 08:00，Raw Body `{"ref":"main","inputs":{"mode":"upstream"}}`）。上游 `lankerr/2026-glados-checkin` 有新提交时，Bark 会提醒你，附 commit 链接和标题。
+
+跟进方式：按 [UPSTREAM_SYNC_RUNBOOK.md](UPSTREAM_SYNC_RUNBOOK.md) 评估并移植改动，**不要直接 `git merge` 上游**（本项目是包结构 + 大量自定义功能，merge 会覆盖掉你的 Bark/早报等逻辑）。
+
+详见 [认证与诊断 → 上游更新监控](#-上游更新监控upstream)。
 
 </details>
 
@@ -1529,7 +1885,7 @@ cookie1&cookie2&cookie3
 | GitHub Actions + keep-alive | 完全在 GitHub 内     | 需等待 1-2 周恢复期 | ⭐⭐       |
 | 每天手动触发                | 简单直接             | 无法自动化          | ⭐         |
 
-**因此强烈推荐使用 cron-job.org！** [🔝 查看配置教程](#-推荐方案-cron-joborg-配置定时)
+**因此强烈推荐使用 cron-job.org！** [🔝 查看配置教程](#-推荐方案cron-joborg-配置定时)
 
 ---
 
@@ -1538,8 +1894,9 @@ cookie1&cookie2&cookie3
 | 文件                    | 说明                                        |
 | ----------------------- | ------------------------------------------- |
 | `checkin.py`            | 兼容入口，仍支持 `python checkin.py`        |
-| `glados_checkin/app.py` | 核心业务流程（签到、统计、心跳、兑换提醒）  |
+| `glados_checkin/app.py` | 核心业务流程（签到、统计、心跳、兑换提醒、诊断、上游监控） |
 | `glados_checkin/cli.py` | 命令行入口和 `RUN_MODE` 分发                |
+| `glados_checkin/notify_test.py` | `RUN_MODE=notify_test` 推送渠道自检 |
 | `glados_checkin/morning.py` | Bark 独立每日早报                       |
 | `glados_checkin/habit.py` | Bark 独立习惯提醒                       |
 | `glados_checkin/shortcuts.py` | iOS 快捷指令 URL 模板工具             |
@@ -1579,6 +1936,9 @@ cookie1&cookie2&cookie3
 - ✅ 新增 `RUN_MODE=upstream`：监控上游 `lankerr/2026-glados-checkin` 新提交，发现后 Bark 提醒并附移植指引；首次运行只记录基线不刷屏，同一 commit 不重复提醒；可用 `UPSTREAM_MONITOR_REPO` 换跟踪目标
 - ✅ Cookie 过期告警新增「失败原因速查」：按账号的具体错误类型（device-mismatch / 401/403 / automated check-in / 网络）附一行针对性的修复指引
 - ✅ workflow `mode` 输入说明同步新模式
+- ✅ workflow 补齐新变量接线：`UPSTREAM_*`（10 项）、`CHECKIN_DIAGNOSTIC_ONLY`、`HEARTBEAT_FORCE`、`BARK_EVENT_BODY_LIMIT`（此前 README 可配置但 Actions 环境读不到）
+- ✅ README 新增「🔐 认证与诊断」章节：device-mismatch 原理与 `GLADOS_USER_AGENT` 配置图解、Cookie 三种获取方式、`diagnose`/`notify_test`/`upstream` 用法、失败原因速查表、全模式别名表
+- ✅ 修正原文档 5 个失效的目录内部链接
 
 ### v1.10.0 (2026-10-30) 🔐 移植上游 2026-10 认证诊断修复（#19 / #23）
 

@@ -111,15 +111,19 @@ jobs:
           BARK_COPY_MODE: ${{ secrets.BARK_COPY_MODE }}
           BARK_COPY_LIMIT: ${{ secrets.BARK_COPY_LIMIT }}
           BARK_ARCHIVE: ${{ secrets.BARK_ARCHIVE }}
+          BARK_EVENT_BODY_LIMIT: ${{ secrets.BARK_EVENT_BODY_LIMIT }}
           BARK_TTL: ${{ secrets.BARK_TTL }}
           BARK_VOLUME: ${{ secrets.BARK_VOLUME }}
           # 可选配置
           RUN_MODE: ${{ github.event.inputs.mode || 'checkin' }}
+          # 只读诊断开关（等价于 mode=diagnose，供 cron/手动触发时统一控制）
+          CHECKIN_DIAGNOSTIC_ONLY: ${{ secrets.CHECKIN_DIAGNOSTIC_ONLY }}
           GITHUB_TOKEN: ${{ github.token }}
           HEARTBEAT_GRACE_MINUTES: ${{ secrets.HEARTBEAT_GRACE_MINUTES }}
           HEARTBEAT_BARK_LEVEL: ${{ secrets.HEARTBEAT_BARK_LEVEL }}
           HEARTBEAT_BARK_SOUND: ${{ secrets.HEARTBEAT_BARK_SOUND }}
           HEARTBEAT_BARK_URL: ${{ secrets.HEARTBEAT_BARK_URL }}
+          HEARTBEAT_FORCE: ${{ secrets.HEARTBEAT_FORCE }}
           HEARTBEAT_SHORTCUT_NAME: ${{ github.event.inputs.shortcut_name || secrets.HEARTBEAT_SHORTCUT_NAME }}
           HEARTBEAT_SHORTCUT_INPUT: ${{ github.event.inputs.shortcut_input || secrets.HEARTBEAT_SHORTCUT_INPUT }}
           HEARTBEAT_SHORTCUT_TEXT: ${{ github.event.inputs.shortcut_text || secrets.HEARTBEAT_SHORTCUT_TEXT }}
@@ -190,6 +194,17 @@ jobs:
           ACTIONS_MONITOR_SOUND_FAILURE: ${{ secrets.ACTIONS_MONITOR_SOUND_FAILURE }}
           ACTIONS_MONITOR_SOUND_FAILURE_REPEAT: ${{ secrets.ACTIONS_MONITOR_SOUND_FAILURE_REPEAT }}
           ACTIONS_MONITOR_SOUND_ERROR: ${{ secrets.ACTIONS_MONITOR_SOUND_ERROR }}
+          # 上游更新监控（RUN_MODE=upstream）
+          UPSTREAM_MONITOR_REPO: ${{ secrets.UPSTREAM_MONITOR_REPO }}
+          UPSTREAM_MONITOR_TOKEN: ${{ secrets.UPSTREAM_MONITOR_TOKEN }}
+          UPSTREAM_MONITOR_ENABLED: ${{ secrets.UPSTREAM_MONITOR_ENABLED }}
+          UPSTREAM_BARK_LEVEL: ${{ secrets.UPSTREAM_BARK_LEVEL }}
+          UPSTREAM_BARK_SOUND: ${{ secrets.UPSTREAM_BARK_SOUND }}
+          UPSTREAM_GROUP_SUFFIX: ${{ secrets.UPSTREAM_GROUP_SUFFIX }}
+          UPSTREAM_BARK_URL: ${{ secrets.UPSTREAM_BARK_URL }}
+          UPSTREAM_SHORTCUT_NAME: ${{ github.event.inputs.shortcut_name || secrets.UPSTREAM_SHORTCUT_NAME }}
+          UPSTREAM_SHORTCUT_INPUT: ${{ github.event.inputs.shortcut_input || secrets.UPSTREAM_SHORTCUT_INPUT }}
+          UPSTREAM_SHORTCUT_TEXT: ${{ github.event.inputs.shortcut_text || secrets.UPSTREAM_SHORTCUT_TEXT }}
           HABIT_ENABLED: ${{ secrets.HABIT_ENABLED }}
           HABIT_TYPE: ${{ github.event.inputs.habit_type || secrets.HABIT_TYPE }}
           HABIT_TITLE: ${{ github.event.inputs.habit_title || secrets.HABIT_TITLE }}
@@ -252,15 +267,19 @@ jobs:
           BARK_COPY_MODE: ${{ secrets.BARK_COPY_MODE }}
           BARK_COPY_LIMIT: ${{ secrets.BARK_COPY_LIMIT }}
           BARK_ARCHIVE: ${{ secrets.BARK_ARCHIVE }}
+          BARK_EVENT_BODY_LIMIT: ${{ secrets.BARK_EVENT_BODY_LIMIT }}
           BARK_TTL: ${{ secrets.BARK_TTL }}
           BARK_VOLUME: ${{ secrets.BARK_VOLUME }}
           # 可选配置
           RUN_MODE: ${{ github.event.inputs.mode || 'checkin' }}
+          # 只读诊断开关（等价于 mode=diagnose，供 cron/手动触发时统一控制）
+          CHECKIN_DIAGNOSTIC_ONLY: ${{ secrets.CHECKIN_DIAGNOSTIC_ONLY }}
           GITHUB_TOKEN: ${{ github.token }}
           HEARTBEAT_GRACE_MINUTES: ${{ secrets.HEARTBEAT_GRACE_MINUTES }}
           HEARTBEAT_BARK_LEVEL: ${{ secrets.HEARTBEAT_BARK_LEVEL }}
           HEARTBEAT_BARK_SOUND: ${{ secrets.HEARTBEAT_BARK_SOUND }}
           HEARTBEAT_BARK_URL: ${{ secrets.HEARTBEAT_BARK_URL }}
+          HEARTBEAT_FORCE: ${{ secrets.HEARTBEAT_FORCE }}
           HEARTBEAT_SHORTCUT_NAME: ${{ github.event.inputs.shortcut_name || secrets.HEARTBEAT_SHORTCUT_NAME }}
           HEARTBEAT_SHORTCUT_INPUT: ${{ github.event.inputs.shortcut_input || secrets.HEARTBEAT_SHORTCUT_INPUT }}
           HEARTBEAT_SHORTCUT_TEXT: ${{ github.event.inputs.shortcut_text || secrets.HEARTBEAT_SHORTCUT_TEXT }}
@@ -331,6 +350,17 @@ jobs:
           ACTIONS_MONITOR_SOUND_FAILURE: ${{ secrets.ACTIONS_MONITOR_SOUND_FAILURE }}
           ACTIONS_MONITOR_SOUND_FAILURE_REPEAT: ${{ secrets.ACTIONS_MONITOR_SOUND_FAILURE_REPEAT }}
           ACTIONS_MONITOR_SOUND_ERROR: ${{ secrets.ACTIONS_MONITOR_SOUND_ERROR }}
+          # 上游更新监控（RUN_MODE=upstream）
+          UPSTREAM_MONITOR_REPO: ${{ secrets.UPSTREAM_MONITOR_REPO }}
+          UPSTREAM_MONITOR_TOKEN: ${{ secrets.UPSTREAM_MONITOR_TOKEN }}
+          UPSTREAM_MONITOR_ENABLED: ${{ secrets.UPSTREAM_MONITOR_ENABLED }}
+          UPSTREAM_BARK_LEVEL: ${{ secrets.UPSTREAM_BARK_LEVEL }}
+          UPSTREAM_BARK_SOUND: ${{ secrets.UPSTREAM_BARK_SOUND }}
+          UPSTREAM_GROUP_SUFFIX: ${{ secrets.UPSTREAM_GROUP_SUFFIX }}
+          UPSTREAM_BARK_URL: ${{ secrets.UPSTREAM_BARK_URL }}
+          UPSTREAM_SHORTCUT_NAME: ${{ github.event.inputs.shortcut_name || secrets.UPSTREAM_SHORTCUT_NAME }}
+          UPSTREAM_SHORTCUT_INPUT: ${{ github.event.inputs.shortcut_input || secrets.UPSTREAM_SHORTCUT_INPUT }}
+          UPSTREAM_SHORTCUT_TEXT: ${{ github.event.inputs.shortcut_text || secrets.UPSTREAM_SHORTCUT_TEXT }}
           HABIT_ENABLED: ${{ secrets.HABIT_ENABLED }}
           HABIT_TYPE: ${{ github.event.inputs.habit_type || secrets.HABIT_TYPE }}
           HABIT_TITLE: ${{ github.event.inputs.habit_title || secrets.HABIT_TITLE }}
