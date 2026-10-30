@@ -277,6 +277,8 @@ GLaDOS 在 2026 年初进行了 API 更新，**绝大多数旧签到脚本已失
 | `PUSH_LEVEL`         | ❌ 否 | 推送级别：`all` (默认，每次均推送) 或 `fail_only` (仅有账号签到失败时推送) |
 | `GLADOS_USER_AGENT`  | ❌ 否 | 创建当前 `gld:sess` 会话的浏览器 User-Agent。2026-09 新版接口会校验登录设备，UA 不匹配会返回 device-mismatch 导致签到失败；在 GitHub 仓库 Settings → Secrets and variables → **Variables** 里新增 `GLADOS_USER_AGENT` 即可 |
 | `CHECKIN_DIAGNOSTIC_ONLY` | ❌ 否 | 设为 `true` 时只读诊断：仅验证 Cookie 能否查询账号状态，不签到、不兑换、不推送。等价于 `RUN_MODE=diagnose` |
+| `UPSTREAM_MONITOR_REPO` | ❌ 否 | 上游更新监控跟踪的仓库，默认 `lankerr/2026-glados-checkin`。`RUN_MODE=upstream` 使用 |
+| `UPSTREAM_BARK_LEVEL` / `UPSTREAM_BARK_SOUND` | ❌ 否 | 上游更新提醒的 Bark 级别/铃声，默认 `active` / `birdsong` |
 | `WEATHER_CITY`       | ❌ 否 | 天气城市，默认 `杭州`。例如 `北京`、`上海`                                |
 | `CHECKIN_HOURS`      | ❌ 否 | 自定义签到时间，默认 `09:30,21:30`。多个时间用逗号分隔                    |
 | `MONTHLY_GOAL`       | ❌ 否 | 每月签到目标天数，默认 `25`。用于月度目标追踪                              |
@@ -855,6 +857,12 @@ RUN_MODE=heartbeat python3 checkin.py
 
 # 可选：只读诊断 Cookie（不签到、不兑换、不推送）
 RUN_MODE=diagnose python3 checkin.py
+
+# 可选：推送渠道自检（给所有已配置渠道各发一条测试，不需要 GLADOS_COOKIE）
+RUN_MODE=notify_test python3 checkin.py
+
+# 可选：上游更新监控（lankerr 仓库有新提交时 Bark 提醒，建议每天一次）
+RUN_MODE=upstream python3 checkin.py
 
 # 可选：只发送 Bark 每日早报（不需要 GLADOS_COOKIE）
 RUN_MODE=morning python3 checkin.py
@@ -1564,6 +1572,13 @@ cookie1&cookie2&cookie3
 ---
 
 ## 📝 更新日志
+
+### v1.11.0 (2026-10-30) 🧰 运维三连：渠道自检 / 上游更新提醒 / 失败原因速查
+
+- ✅ 新增 `RUN_MODE=notify_test`：给所有已配置渠道（PushPlus/Server酱/Telegram/钉钉/Bark）各发一条测试消息并汇总成败，配好新渠道后立即验证，不需要 GLADOS_COOKIE
+- ✅ 新增 `RUN_MODE=upstream`：监控上游 `lankerr/2026-glados-checkin` 新提交，发现后 Bark 提醒并附移植指引；首次运行只记录基线不刷屏，同一 commit 不重复提醒；可用 `UPSTREAM_MONITOR_REPO` 换跟踪目标
+- ✅ Cookie 过期告警新增「失败原因速查」：按账号的具体错误类型（device-mismatch / 401/403 / automated check-in / 网络）附一行针对性的修复指引
+- ✅ workflow `mode` 输入说明同步新模式
 
 ### v1.10.0 (2026-10-30) 🔐 移植上游 2026-10 认证诊断修复（#19 / #23）
 

@@ -2561,6 +2561,31 @@ def summarize_checkin_failure(result):
         details.append(f'reason={reason}')
     return label + (f" [{', '.join(details)}]" if details else '')
 
+
+def failure_repair_hint(result):
+    """按失败类型给出一行可执行的修复指引（v1.11.0 新增）。
+
+    与 summarize_checkin_failure 分工：后者说"发生了什么"，
+    这个函数说"下一步该做什么"；两者配套 diagnose 模式形成排查闭环。
+    """
+    if not isinstance(result, dict):
+        return "🌐 所有域名请求失败：检查网络连通性；持续失败时确认官方域名可达，或稍后由重试兜底"
+    reason = str(result.get('reason', '')).strip().lower()
+    message = str(result.get('message', '')).strip().lower()
+    status = result.get('http_status')
+    if reason == 'device-mismatch':
+        return "📱 设备校验失败：把复制该 Cookie 的浏览器 User-Agent 配到 GitHub Variables 的 GLADOS_USER_AGENT，重跑签到"
+    if 'automated check-in detected' in message:
+        return "🤖 官方拒绝自动化签到：先更新 Cookie 并匹配浏览器 UA；仍失败说明官方收紧策略，需人工签到或联系服务方"
+    if status in (401, 403) or reason == 'http-auth-rejected':
+        return "🔑 会话被拒绝(401/403)：重新登录 glados.cloud，用 Cookie-Editor 导出完整 gld:sess + gld:sess.sig 更新 GLADOS_COOKIE，先用 mode=diagnose 验证"
+    if 'please checkin via' in message:
+        return "🖐️ 官方要求浏览器人工签到：同上，先更新 Cookie 与 UA；仍失败需改人工签到"
+    code = result.get('code')
+    if code == -2 or '没有权限' in message or 'permission' in message or 'unauthorized' in message:
+        return "🔑 认证失效：更新 Secrets 里的 GLADOS_COOKIE（gld:sess + gld:sess.sig），并用 mode=diagnose 验证"
+    return "ℹ️ 未识别的失败：查看 Actions 日志定位原因，必要时用 mode=diagnose 单独验证 Cookie"
+
 # GLaDOS 2026-09 起的会话使用 gld:sess / gld:sess.sig；旧版仍使用 koa:sess / koa:sess.sig
 CURRENT_SESSION_COOKIES = ('gld:sess', 'gld:sess.sig')
 LEGACY_SESSION_COOKIES = ('koa:sess', 'koa:sess.sig')
@@ -3260,6 +3285,139 @@ def send_actions_monitor():
     return ok
 
 
+# ================= 上游更新监控（v1.11.0 新增）=================
+#
+# 本项目是 lankerr/2026-glados-checkin 的 fork，采用"移植补丁"策略同步。
+# 该任务定期查询上游 main 分支最新 commit，发现新提交就 Bark 提醒，
+# 避免上游修了认证/接口问题而这边长期不知道（本次 #19/#23 就是例子）。
+
+# 默认跟踪的上游仓库；可用 UPSTREAM_MONITOR_REPO 覆盖
+DEFAULT_UPSTREAM_REPO = "lankerr/2026-glados-checkin"
+
+
+def _upstream_monitor_state(data):
+    """上游监控状态：只保留 last_seen_sha，体积小、不参与过期清理。"""
+    if "upstream_monitor" not in data:
+        data["upstream_monitor"] = {}
+    return data["upstream_monitor"]
+
+
+def _upstream_latest_commit(repo, token=None):
+    """查询 GitHub API 获取上游分支最新 commit。
+
+    返回 {sha, message, date, url}；接口失败抛异常由调用方处理。
+    """
+    url = f"https://api.github.com/repos/{repo}/commits?per_page=1"
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "2026-glados-checkin-upstream-monitor",
+    }
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    resp = requests.get(url, headers=headers, timeout=15)
+    if resp.status_code == 404:
+        raise RuntimeError(f"上游仓库不存在或不可访问: {repo}")
+    if resp.status_code >= 400:
+        # GitHub 错误响应不含敏感内容，可保留状态码；正文截断防止日志膨胀
+        raise RuntimeError(f"GitHub API HTTP {resp.status_code}")
+    commits = resp.json()
+    if not commits:
+        raise RuntimeError(f"上游仓库无提交记录: {repo}")
+    c = commits[0]
+    commit_info = c.get("commit", {})
+    return {
+        "sha": str(c.get("sha", "")),
+        "message": str(commit_info.get("message", "")).splitlines()[0][:120],
+        "date": _format_github_time(commit_info.get("committer", {}).get("date")),
+        "url": c.get("html_url") or f"https://github.com/{repo}/commits/main",
+    }
+
+
+def send_upstream_monitor():
+    """检查上游仓库是否有新提交；有则推送提醒（RUN_MODE=upstream）。
+
+    去重：记住上次提醒过的 sha，同一 commit 不重复推送；
+    首次运行只记录基线不打扰（避免一上来就被历史提交刷屏）。
+    """
+    log("📡 上游更新监控开始...")
+    if not env_flag("UPSTREAM_MONITOR_ENABLED", True):
+        log("⏭️ UPSTREAM_MONITOR_ENABLED=false，跳过")
+        return False
+
+    repo = env_text("UPSTREAM_MONITOR_REPO", DEFAULT_UPSTREAM_REPO)
+    # 复用 ACTIONS_MONITOR_TOKEN（同一个 GitHub token 可查两个仓库）
+    token = env_text("UPSTREAM_MONITOR_TOKEN") or _actions_monitor_token()
+
+    data = load_data()
+    state = _upstream_monitor_state(data)
+    last_sha = str(state.get("last_seen_sha", ""))
+
+    try:
+        latest = _upstream_latest_commit(repo, token=token)
+    except Exception as e:
+        log(f"❌ 上游查询失败: {e}")
+        save_data(data)
+        return False
+
+    log(f"   上游: {repo}")
+    log(f"   最新提交: {latest['sha'][:8]} {latest['message']} ({latest['date']})")
+
+    if not latest["sha"]:
+        log("⚠️ 未获取到 commit sha，本次不更新状态")
+        save_data(data)
+        return False
+
+    if not last_sha:
+        # 首次运行：记录基线。不提醒历史提交，从下一个新 commit 开始通知
+        state["last_seen_sha"] = latest["sha"]
+        state["last_seen_at"] = now_bjt().strftime("%Y-%m-%d %H:%M:%S")
+        state["baseline_message"] = latest["message"]
+        log(f"✅ 已记录基线 commit {latest['sha'][:8]}，后续有新提交才会提醒")
+        save_data(data)
+        return False
+
+    if latest["sha"] == last_sha:
+        log(f"⏭️ 上游无新提交（仍为 {last_sha[:8]}）")
+        save_data(data)
+        return False
+
+    # 有新提交：先更新状态防止重复提醒，再尝试推送
+    state["last_seen_sha"] = latest["sha"]
+    state["last_seen_at"] = now_bjt().strftime("%Y-%m-%d %H:%M:%S")
+    save_data(data)
+
+    title = f"上游更新: {repo.split('/')[-1]} 有新提交"
+    body = (
+        f"📦 上游仓库有新提交，可能需要移植修复\n\n"
+        f"最新 commit: {latest['sha'][:8]}\n"
+        f"信息: {latest['message']}\n"
+        f"时间: {latest['date']}\n\n"
+        f"操作提示: 按 UPSTREAM_SYNC_RUNBOOK.md 评估并移植；"
+        f"若涉及认证/接口修复（参考 #19/#23），优先处理"
+    )
+
+    bark_key = os.environ.get("BARK_KEY")
+    if not bark_key:
+        log("⚠️ 未配置 BARK_KEY，上游更新仅输出日志")
+        log(body)
+        return False
+
+    ok = bark_event_push(
+        bark_key,
+        title,
+        body,
+        level=env_text("UPSTREAM_BARK_LEVEL", "active"),
+        sound=env_text("UPSTREAM_BARK_SOUND", "birdsong"),
+        group_suffix=env_text("UPSTREAM_GROUP_SUFFIX", "上游"),
+        url=bark_url_or_shortcut("UPSTREAM_BARK_URL", "UPSTREAM", latest["url"]),
+        default_url=latest["url"],
+    )
+    if ok:
+        log(f"📣 上游更新提醒已发送: {latest['sha'][:8]}")
+    return ok
+
+
 def _exchange_alert_key(email, need):
     digest = hashlib.md5(str(email).encode('utf-8')).hexdigest()[:8]
     return f"{digest}:{need}"
@@ -3813,6 +3971,8 @@ def main():
     success_cnt = 0
     expired_cookies = []
     exchange_events = []
+    # 失败原因速查（v1.11.0）：账号编号 -> 一行修复指引，附在过期告警末尾
+    repair_hints = {}
 
     for i, cookie in enumerate(cookies, 1):
         g = GLaDOS(cookie)
@@ -3827,12 +3987,15 @@ def main():
             msg = "Cookie 已过期或网络异常"
             log(f"❌ 用户 {i}: 所有域名请求失败，Cookie 可能已过期")
             expired_cookies.append(i)
+            repair_hints[i] = failure_repair_hint(res)
         elif is_non_retryable_checkin_result(res):
             # 认证被拒：用安全摘要替代原始 message，不回显服务端响应内容
             auth_rejected = True
             msg = summarize_checkin_failure(res)
             log(f"❌ 用户 {i}: Cookie 已失效 - {msg}")
             expired_cookies.append(i)
+            # 失败原因速查（v1.11.0）：按错误类型给出下一步操作，附在告警末尾
+            repair_hints[i] = failure_repair_hint(res)
         else:
             msg = res.get('message', 'Failure')
 
@@ -3845,6 +4008,12 @@ def main():
                 log(f"⚠️ 用户 {i}: 获取状态失败，Cookie 可能已过期")
                 if i not in expired_cookies:
                     expired_cookies.append(i)
+                    # 签到响应正常但状态查询失败：大概率是会话临期或网络抖动，
+                    # 给出"先诊断再更新 Cookie"的排查路径
+                    repair_hints[i] = (
+                        "🩺 签到后状态查询失败：先跑一次 mode=diagnose 验证会话；"
+                        "诊断也失败则重新登录并更新 GLADOS_COOKIE，注意 UA 匹配"
+                    )
 
             g.get_points()
 
@@ -3904,6 +4073,16 @@ def main():
             f"2. 用 Cookie-Editor 复制新的 Cookie\n"
             f"3. 去 GitHub Secrets 更新 GLADOS_COOKIE"
         )
+        # 失败原因速查（v1.11.0）：按每个账号的具体错误类型附上针对性修复指引，
+        # 避免用户分不清该换 Cookie 还是该配 User-Agent
+        if repair_hints:
+            hint_lines = "\n".join(
+                f"账号 {idx}: {repair_hints[idx]}"
+                for idx in expired_cookies
+                if idx in repair_hints
+            )
+            if hint_lines:
+                alert_content += f"\n\n🔍 本次失败原因与修复指引：\n{hint_lines}"
         log(f"⚠️ 检测到 {len(expired_cookies)} 个 Cookie 过期，发送告警...")
         send_alert("⚠️ GLaDOS Cookie 已过期", alert_content)
 

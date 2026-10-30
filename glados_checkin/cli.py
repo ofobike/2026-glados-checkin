@@ -41,6 +41,19 @@ def run():
         from .app import send_actions_monitor
 
         send_actions_monitor()
+    elif run_mode in ("upstream", "upstream_monitor"):
+        # 上游更新监控（v1.11.0）：lankerr 仓库有新提交时 Bark 提醒；
+        # 建议每天跑一次（cron-job.org 独立任务）
+        from .app import send_upstream_monitor
+
+        send_upstream_monitor()
+    elif run_mode in ("notify_test", "push_test", "test_push"):
+        # 推送渠道自检（v1.11.0）：给所有已配置渠道各发一条测试消息，
+        # 不需要 GLADOS_COOKIE；全部通过退出码 0，有失败则 1
+        import sys as _sys
+        from .notify_test import run_notify_test
+
+        _sys.exit(run_notify_test())
     elif run_mode in ("habit", "habit_reminder", "bark_habit"):
         from .habit import send_habit_reminder
 
