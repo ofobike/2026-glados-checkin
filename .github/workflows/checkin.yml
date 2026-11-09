@@ -78,7 +78,7 @@ jobs:
           GLADOS_COOKIE: ${{ secrets.GLADOS_COOKIE }}
           # 必须与创建当前 gld:sess 会话的浏览器 User-Agent 一致，
           # 否则新版接口会返回 device-mismatch（GitHub Vars 配置）
-          GLADOS_USER_AGENT: ${{ vars.GLADOS_USER_AGENT }}
+          GLADOS_USER_AGENT: ${{ vars.GLADOS_USER_AGENT || secrets.GLADOS_USER_AGENT }}
           # 推送渠道（按需配置）
           PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
           SEND_KEY: ${{ secrets.SEND_KEY }}
@@ -128,6 +128,10 @@ jobs:
           HEARTBEAT_SHORTCUT_INPUT: ${{ github.event.inputs.shortcut_input || secrets.HEARTBEAT_SHORTCUT_INPUT }}
           HEARTBEAT_SHORTCUT_TEXT: ${{ github.event.inputs.shortcut_text || secrets.HEARTBEAT_SHORTCUT_TEXT }}
           EXCHANGE_ALERT_ENABLED: ${{ secrets.EXCHANGE_ALERT_ENABLED }}
+          # 进程内签到重试（上游 #28）与自动兑换（上游 #11，本地默认关闭）
+          CHECKIN_MAX_ATTEMPTS: ${{ secrets.CHECKIN_MAX_ATTEMPTS }}
+          CHECKIN_RETRY_DELAY_SECONDS: ${{ secrets.CHECKIN_RETRY_DELAY_SECONDS }}
+          EXCHANGE_PLAN: ${{ secrets.EXCHANGE_PLAN }}
           EXCHANGE_BARK_LEVEL: ${{ secrets.EXCHANGE_BARK_LEVEL }}
           EXCHANGE_BARK_SOUND: ${{ secrets.EXCHANGE_BARK_SOUND }}
           EXCHANGE_BARK_URL: ${{ secrets.EXCHANGE_BARK_URL }}
@@ -234,7 +238,7 @@ jobs:
           GLADOS_COOKIE: ${{ secrets.GLADOS_COOKIE }}
           # 必须与创建当前 gld:sess 会话的浏览器 User-Agent 一致，
           # 否则新版接口会返回 device-mismatch（GitHub Vars 配置）
-          GLADOS_USER_AGENT: ${{ vars.GLADOS_USER_AGENT }}
+          GLADOS_USER_AGENT: ${{ vars.GLADOS_USER_AGENT || secrets.GLADOS_USER_AGENT }}
           # 推送渠道（按需配置）
           PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
           SEND_KEY: ${{ secrets.SEND_KEY }}
@@ -284,6 +288,10 @@ jobs:
           HEARTBEAT_SHORTCUT_INPUT: ${{ github.event.inputs.shortcut_input || secrets.HEARTBEAT_SHORTCUT_INPUT }}
           HEARTBEAT_SHORTCUT_TEXT: ${{ github.event.inputs.shortcut_text || secrets.HEARTBEAT_SHORTCUT_TEXT }}
           EXCHANGE_ALERT_ENABLED: ${{ secrets.EXCHANGE_ALERT_ENABLED }}
+          # 进程内签到重试（上游 #28）与自动兑换（上游 #11，本地默认关闭）
+          CHECKIN_MAX_ATTEMPTS: ${{ secrets.CHECKIN_MAX_ATTEMPTS }}
+          CHECKIN_RETRY_DELAY_SECONDS: ${{ secrets.CHECKIN_RETRY_DELAY_SECONDS }}
+          EXCHANGE_PLAN: ${{ secrets.EXCHANGE_PLAN }}
           EXCHANGE_BARK_LEVEL: ${{ secrets.EXCHANGE_BARK_LEVEL }}
           EXCHANGE_BARK_SOUND: ${{ secrets.EXCHANGE_BARK_SOUND }}
           EXCHANGE_BARK_URL: ${{ secrets.EXCHANGE_BARK_URL }}

@@ -20,12 +20,14 @@
 import csv
 import hashlib
 import json
+import math
 import os
 import random
 import re
 import sys
 import time
 from datetime import date, datetime, timedelta
+from urllib.parse import urlsplit
 
 import requests
 
@@ -39,7 +41,7 @@ from glados_checkin.lunar import (
 from glados_checkin.notifiers import dingtalk, pushplus_push, serverchan, telegram_push
 from glados_checkin.paths import DATA_FILE, EXPORT_FILE
 from glados_checkin.shortcuts import bark_url_or_shortcut
-from glados_checkin.utils import BJT, log, mask_email, now_bjt
+from glados_checkin.utils import BJT, log, mask_email, now_bjt, parse_int
 
 # ================= 配置 =================
 
@@ -65,7 +67,33 @@ DEFAULT_USER_AGENT = (
 HEADERS = {
     'Content-Type': 'application/json;charset=UTF-8',
     'Accept': 'application/json, text/plain, */*',
+    'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+    'Sec-Fetch-Dest': 'empty',
+    'Sec-Fetch-Mode': 'cors',
+    'Sec-Fetch-Site': 'same-origin',
 }
+
+# 官方控制台现行流程（上游 2026-11 #28/#33）：先 GET challenge 拿 nonce，
+# 等待至少 2.5s，再提交 SHA-256(nonce + ".glados-observe-v1") 作为 proof。
+# 保留一点余量，与上游参考脚本一致。
+CHECKIN_CHALLENGE_DELAY = 2.7
+
+# 视为"正常签到/无害重复"的响应消息（上游 #28）
+NORMAL_CHECKIN_MESSAGES = (
+    "checkin! got",
+    "checkin repeats! please try tomorrow",
+    "today's observation logged",
+)
+
+# 积分兑换计划（上游 #11）：消耗 points 积分兑换 days 天会员。
+# 本地默认关闭（EXCHANGE_PLAN 不配置即 off）；显式配置 plan100/plan200/plan500 启用。
+EXCHANGE_PLANS = {
+    "plan100": {"points": 100, "days": 10},
+    "plan200": {"points": 200, "days": 30},
+    "plan500": {"points": 500, "days": 100},
+}
+
+EXCHANGE_DISABLED_VALUES = ("", "off", "no", "none", "false", "0", "disabled")
 
 # ================= 工具函数 =================
 
@@ -2459,15 +2487,66 @@ def is_checkin_success(message):
     return any(k in text for k in ['checkin', 'repeat', 'repeats', 'already', '已签到', '签到成功'])
 
 
-# ---- 认证/会话诊断工具（同步自上游 2026-10 #19 / #23）----
+# ---- 认证/会话诊断工具（同步自上游 2026-10 #19 / #23，2026-11 #28 UA 容错）----
+
+class UserAgentConfigurationError(ValueError):
+    """本地 User-Agent 输入非法；错误信息绝不回显用户提供的原值。"""
+
+
+def normalize_user_agent(raw):
+    """容错处理常见的复制粘贴问题，但不改动真实浏览器 UA 本体（上游 #28）。"""
+    if any((ord(char) < 32 and char not in (chr(9), chr(13), chr(10))) or ord(char) == 127 for char in raw):
+        raise UserAgentConfigurationError('含有无效控制字符，请重新复制浏览器的 User-Agent')
+    value = raw.strip()
+    if not value:
+        return '', False
+    if chr(13) in value or chr(10) in value:
+        raise UserAgentConfigurationError('含有换行，请粘贴完整单行 User-Agent')
+    try:
+        value.encode('latin-1')
+    except UnicodeEncodeError:
+        raise UserAgentConfigurationError(
+            '含有不支持的字符，请重新复制浏览器的 User-Agent，不要加入说明文字或中文引号'
+        ) from None
+
+    original = value
+    prefix_removed = False
+    if value.lower().startswith('user-agent:'):
+        value = value[len('user-agent:'):].strip()
+        prefix_removed = True
+    if len(value) >= 2 and value[0] == value[-1]:
+        inner = value[1:-1]
+        # 撇号是合法的 product-token 字符：只有包裹整条含空格的浏览器字符串、
+        # 或复制了请求头名称时才剥外层单引号；双引号不是 token 字符。
+        single_quote_wrapper = value[0] == "'" and (
+            not inner or any(char in ' \t' for char in inner)
+            or inner.lower().startswith('user-agent:')
+        )
+        if value[0] == '"' or single_quote_wrapper:
+            value = inner.strip()
+    if not prefix_removed and value.lower().startswith('user-agent:'):
+        value = value[len('user-agent:'):].strip()
+    if not value:
+        raise UserAgentConfigurationError('只有请求头名称或引号，没有 User-Agent 值')
+    if value[0] == '"' or value[-1] == '"':
+        raise UserAgentConfigurationError('外层双引号不成对或重复，请只保留 User-Agent 值')
+    if len(value) >= 2 and value[0] == value[-1] == "'" and any(char in ' \t' for char in value):
+        raise UserAgentConfigurationError('包裹 User-Agent 的单引号重复，请只保留 User-Agent 值')
+    if value.lower().startswith('user-agent:'):
+        raise UserAgentConfigurationError('请求头名称重复，请只保留 User-Agent 值')
+    return value, value != original
+
 
 def get_browser_headers():
-    """按创建会话的浏览器 UA 构造请求头（上游 #19）。
+    """按创建会话的浏览器 UA 构造请求头（上游 #19 + #28 容错）。
 
     新版 GLaDOS 会校验 User-Agent 与 Sec-CH-UA* 客户端提示是否和登录会话
     匹配；只改 UA 字符串而不改 Sec-CH-UA 头，仍会被判定为设备不匹配。
+    UA 中的复制粘贴问题（引号、"User-Agent:" 前缀）由 normalize 容错，
+    非法输入抛 UserAgentConfigurationError（不回显原值）。
     """
-    user_agent = os.environ.get("GLADOS_USER_AGENT", "").strip() or DEFAULT_USER_AGENT
+    user_agent, _ = normalize_user_agent(os.environ.get("GLADOS_USER_AGENT", ""))
+    user_agent = user_agent or DEFAULT_USER_AGENT
     headers = {'User-Agent': user_agent}
 
     # Chrome/Chromium 浏览器会随请求附带 Sec-CH-UA 系列头，这里按 UA 重建，
@@ -2500,9 +2579,17 @@ def get_browser_headers():
 
 
 def log_user_agent_configuration():
-    """提示当前 UA 配置状态；未配置时使用默认值（上游 #23）。"""
-    configured = bool(os.environ.get('GLADOS_USER_AGENT', '').strip())
-    log('浏览器 User-Agent: ' + ('已配置' if configured else '未配置，使用默认值'))
+    """校验并提示当前 UA 配置（上游 #28：容错解析）；配置非法返回 False。"""
+    try:
+        user_agent, normalized = normalize_user_agent(os.environ.get('GLADOS_USER_AGENT', ''))
+    except UserAgentConfigurationError as error:
+        log(f'❌ User-Agent 配置错误: {error}')
+        return False
+    status = '已配置' if user_agent else '未配置，使用默认值'
+    if normalized:
+        status += '（已自动去除外层引号或请求头名称）'
+    log('浏览器 User-Agent: ' + status)
+    return True
 
 
 def is_non_retryable_checkin_result(result):
@@ -2530,18 +2617,35 @@ def is_non_retryable_checkin_result(result):
     )
 
 
+def is_missing_api_response(result):
+    """请求层面就没拿到 API 响应（网络/格式异常），与"服务端拒绝"区分开。"""
+    return not isinstance(result, dict) or result.get('request_failed') is True
+
+
 def summarize_checkin_failure(result):
-    """安全失败摘要（上游 #23）：固定标签 + 白名单元数据。
+    """安全失败摘要（上游 #23 + #28）：固定标签 + 白名单元数据。
 
     服务端原始响应可能包含邮箱等隐私内容或 HTML 错误页，绝不回显；
     只输出确定非敏感的 code / http_status / reason。
     """
     if not isinstance(result, dict):
-        return '未收到有效 API 响应'
+        return '未收到有效 API 响应；本次请求失败，今日签到状态未知'
 
     reason = str(result.get('reason', '')).strip().lower()
     message = str(result.get('message', '')).strip().lower()
-    if reason == 'device-mismatch':
+    if reason == 'checkin-challenge-unavailable':
+        label = '未获取有效签到验证，本次未提交签到，请稍后重试'
+    elif reason == 'checkin-challenge-expired':
+        label = '签到验证已过期，本次未提交签到，请稍后重试'
+    elif result.get('request_failed') is True:
+        if result.get('invalid_headers') is True:
+            label = '请求头格式无效，请检查 Cookie 和 User-Agent 格式'
+        elif result.get('invalid_response') is True:
+            label = '服务响应格式异常，未收到有效 API 响应'
+        else:
+            label = '网络或服务暂时异常，未收到有效 API 响应'
+        label += '；本次请求失败，今日签到状态未知'
+    elif reason == 'device-mismatch':
         label = '服务端拒绝设备校验；请核对会话和 User-Agent 配置'
     elif 'automated check-in detected' in message:
         label = '服务端拒绝自动签到；请核对会话配置，仍失败时联系服务方'
@@ -2557,9 +2661,49 @@ def summarize_checkin_failure(result):
     status = result.get('http_status')
     if type(status) is int and 100 <= status <= 599:
         details.append(f'http_status={status}')
+    if result.get('request_failed') is True and result.get('timed_out') is True:
+        details.append('timeout=true')
     if reason in ('device-mismatch', 'http-auth-rejected'):
         details.append(f'reason={reason}')
     return label + (f" [{', '.join(details)}]" if details else '')
+
+
+def is_normal_checkin_result(result):
+    """返回 True 表示新签到成功或"已签过"这类无害响应。"""
+    if is_missing_api_response(result):
+        return False
+    if is_non_retryable_checkin_result(result):
+        return False
+
+    message = str(result.get('message', '')).strip().lower()
+    if any(marker in message for marker in NORMAL_CHECKIN_MESSAGES):
+        return True
+    # GLaDOS 历史上用 code=0 表示成功；重复/观察类新响应用 code=1，已由上面覆盖。
+    if result.get('code') == 0:
+        return True
+    # 兼容本地历史关键词判定（已签到/签到成功 等中文消息）
+    return is_checkin_success(message)
+
+
+def checkin_with_retry(client, attempts=3, delay_seconds=60):
+    """重试瞬时/未知失败，不重复发送告警（上游 #28）。返回 (result, success)。"""
+    attempts = max(1, attempts)
+    last_result = None
+
+    for attempt in range(1, attempts + 1):
+        last_result = client.checkin()
+        if is_normal_checkin_result(last_result):
+            return last_result, True
+
+        if is_non_retryable_checkin_result(last_result):
+            log(f"❌ 签到认证失败，不再重试: {summarize_checkin_failure(last_result)}")
+            return last_result, False
+
+        if attempt < attempts:
+            log(f"⚠️ 签到第 {attempt}/{attempts} 次失败，{delay_seconds} 秒后重试")
+            time.sleep(max(0, delay_seconds))
+
+    return last_result, False
 
 
 def failure_repair_hint(result):
@@ -2591,6 +2735,26 @@ CURRENT_SESSION_COOKIES = ('gld:sess', 'gld:sess.sig')
 LEGACY_SESSION_COOKIES = ('koa:sess', 'koa:sess.sig')
 
 
+def get_cookie_names(cookie_header):
+    """只返回 Cookie 名集合；值绝不参与日志/返回。"""
+    names = set()
+    for item in cookie_header.split(';'):
+        name, separator, _ = item.strip().partition('=')
+        if separator and name:
+            names.add(name)
+    return names
+
+
+def get_session_cookie_kind(cookie_header):
+    """识别完整的现行会话（gld）或旧版（koa）签名 Cookie 对；无则 None。"""
+    names = get_cookie_names(cookie_header)
+    if set(CURRENT_SESSION_COOKIES).issubset(names):
+        return 'gld'
+    if set(LEGACY_SESSION_COOKIES).issubset(names):
+        return 'koa'
+    return None
+
+
 def extract_cookie(raw: str):
     """提取 Cookie，支持请求头格式、Cookie-Editor JSON 导出与 JWT Token。"""
     if not raw:
@@ -2618,7 +2782,8 @@ def extract_cookie(raw: str):
                     if name and value is not None:
                         pairs.append(f'{name}={value}')
                 cookie = '; '.join(pairs)
-                return cookie or None
+                # 必须含完整会话 Cookie 对（gld 或 koa），否则视为无效导出（上游 #19）
+                return cookie if cookie and get_session_cookie_kind(cookie) else None
             token = parsed.get('token') if isinstance(parsed, dict) else None
             return f'koa:sess={token}' if token else None
         except (json.JSONDecodeError, AttributeError, TypeError):
@@ -2745,50 +2910,77 @@ class GLaDOS:
         self.points = "?"
         self.points_change = "?"
         self.exchange_info = ""
+        self.exchange_result = ""  # 自动兑换结果说明（上游 #11）
         self.plan = "?"
 
         # 2026-09 起新版 GLaDOS 使用 gld:sess 会话；缺少完整的 gld:sess + gld:sess.sig 时
-        # 新版接口可能返回“没有权限”。旧版 koa:sess 仍可工作，但建议更新为完整 Cookie。
-        if 'gld:sess=' not in cookie or 'gld:sess.sig=' not in cookie:
+        # 新版接口可能返回"没有权限"。旧版 koa:sess 仍可工作，但建议更新为完整 Cookie。
+        self.session_cookie_kind = get_session_cookie_kind(cookie)
+        if self.session_cookie_kind != 'gld':
             log("⚠️ Cookie 未包含完整的 gld:sess 与 gld:sess.sig；2026-09 新版接口可能返回“没有权限”，建议更新为完整 Cookie")
         self.plans_list = []  # 存储兑换计划列表
         self.checkin_result = None  # 签到原始响应
         self.earned_points = None  # 本次签到获得积分
         self.points_history_detail = []  # 积分变化明细
         
-    def req(self, method, path, data=None):
-        """带自动域名切换的请求（认证被拒时立即停止，上游 #23）"""
-        for d in DOMAINS:
+    def req(self, method, path, data=None, form=False, domains=None):
+        """带自动域名切换的请求（上游 #23 + #28/#33）。
+
+        - 认证被拒（401/403）立即停止，绝不换备用域名重放（只会加深风控）
+        - 失败返回结构化元数据字典（只含确定非敏感字段），不再返回 None
+        - form=True 时以表单提交（兑换接口要求；预设 JSON 头会被拒绝）
+        - domains 可锁定单个域名（challenge 的 nonce 只在签发域名有效）
+        """
+        # 在任何网络请求前校验本地配置，非法 UA 直接报错
+        browser_headers = get_browser_headers()
+        # 所有域名都失败后，只保留固定、非敏感的失败元数据
+        failure = {'request_failed': True, 'reason': 'request-failed'}
+        for d in DOMAINS if domains is None else domains:
             try:
                 url = f"{d}{path}"
                 h = HEADERS.copy()
                 # 动态 UA + Sec-CH-UA*：必须与创建 gld:sess 会话的浏览器一致
-                h.update(get_browser_headers())
+                h.update(browser_headers)
                 h['Cookie'] = self.cookie
                 h['Origin'] = d
                 h['Referer'] = f"{d}/console/checkin"
-                
-                if method == 'GET':
+
+                if form:
+                    # 表单提交交给 requests 自动设置 Content-Type
+                    h.pop('Content-Type', None)
+                    resp = requests.post(url, headers=h, data=data, timeout=10)
+                elif method == 'GET':
                     resp = requests.get(url, headers=h, timeout=10)
                 else:
                     resp = requests.post(url, headers=h, json=data, timeout=10)
-                
+
                 if resp.status_code == 200:
-                    self.domain = d # Remember working domain
-                    return resp.json()
+                    payload = resp.json()
+                    if isinstance(payload, dict):
+                        self.domain = d  # Remember working domain
+                        return payload
+                    failure['invalid_response'] = True
+                    log(f"⚠️ {d} 响应格式异常")
+                    continue
                 if resp.status_code in (401, 403):
-                    # 认证被明确拒绝：不能换备用域名重放（只会加深风控），
-                    # 响应体可能是 HTML 或含隐私内容，不回显。
+                    # 响应体可能是 HTML 或含隐私内容，不回显
                     return {
                         'http_status': resp.status_code,
                         'reason': 'http-auth-rejected',
                     }
+                failure['http_status'] = resp.status_code
                 log(f"⚠️ {d} 返回 HTTP {resp.status_code}")
-            except Exception as e:
-                # InvalidHeader 等请求异常的文本可能内嵌 Cookie 值，只打异常类名。
+            except (requests.RequestException, ValueError) as e:
+                # InvalidHeader 等异常文本可能内嵌 Cookie 值，只打异常类名。
+                if isinstance(e, requests.Timeout):
+                    failure['timed_out'] = True
+                elif isinstance(e, requests.exceptions.InvalidHeader):
+                    failure['invalid_headers'] = True
+                elif isinstance(e, ValueError):
+                    failure['invalid_response'] = True
                 log(f"⚠️ {d} 请求失败: {type(e).__name__}")
                 continue
-        return None
+        return failure
 
     def get_status(self):
         """获取状态：天数、邮箱"""
@@ -2839,19 +3031,101 @@ class GLaDOS:
         return False
 
     def checkin(self):
-        """执行签到"""
-        res = self.req('POST', '/api/user/checkin', {'token': 'glados.cloud'})
+        """执行签到（上游 2026-11 #28/#33 官方 challenge 协议）。
+
+        先 GET /api/user/checkin/challenge 拿 nonce+ttl，等待最短时长后
+        以 token/nonce/proof 提交；proof=SHA-256(nonce + ".glados-observe-v1")。
+        """
+        challenge = self.req('GET', '/api/user/checkin/challenge')
+        if is_non_retryable_checkin_result(challenge) or is_missing_api_response(challenge):
+            self.checkin_result = challenge
+            return challenge
+        nonce = challenge.get('nonce')
+        ttl = challenge.get('ttl', 300000)
+        if (
+            challenge.get('code') != 0
+            or not isinstance(nonce, str) or not 0 < len(nonce) <= 4096
+            or type(ttl) not in (int, float)
+            or (type(ttl) is float and not math.isfinite(ttl))
+            or ttl <= CHECKIN_CHALLENGE_DELAY * 1000
+        ):
+            result = {'request_failed': True, 'reason': 'checkin-challenge-unavailable'}
+            self.checkin_result = result
+            return result
+
+        # nonce 只在签发它的域名有效：POST 绝不换域名重放，外层重试会取新 challenge。
+        domain = self.domain
+        received_at = time.monotonic()
+        proof = hashlib.sha256((nonce + '.glados-observe-v1').encode('utf-8')).hexdigest()
+        time.sleep(CHECKIN_CHALLENGE_DELAY)
+        if (time.monotonic() - received_at) * 1000 >= ttl:
+            result = {'request_failed': True, 'reason': 'checkin-challenge-expired'}
+            self.checkin_result = result
+            return result
+        res = self.req('POST', '/api/user/checkin', {
+            'token': urlsplit(domain).hostname,
+            'nonce': nonce,
+            'proof': proof,
+        }, domains=(domain,))
         self.checkin_result = res
-        # 尝试从响应中提取本次获得积分
-        if res:
+        # 尝试从响应中提取本次签到获得积分
+        if isinstance(res, dict):
             for key in ['points', 'earned', 'new_points', 'add_points']:
                 if key in res:
                     try:
                         self.earned_points = int(float(str(res[key])))
-                    except:
+                    except Exception:
                         pass
                     break
         return res
+
+    def exchange(self, plan):
+        """兑换会员天数：表单提交 planType（plan100/plan200/plan500，上游 #11）"""
+        return self.req('POST', '/api/user/exchange', {'planType': plan}, form=True)
+
+
+# ================= 自动兑换（上游 #11，本地默认关闭）=================
+
+def get_exchange_plan():
+    """读取自动兑换配置，返回计划 ID；关闭或无效时返回 None。
+
+    与上游差异：上游默认 plan500；本地默认 off（不配置就只提醒不真兑换），
+    需要自动兑换时显式设置 EXCHANGE_PLAN=plan100/plan200/plan500。
+    """
+    raw = os.environ.get("EXCHANGE_PLAN", "").strip().lower()
+    if raw in EXCHANGE_DISABLED_VALUES:
+        return None
+    if raw in EXCHANGE_PLANS:
+        return raw
+    log(f"⚠️ EXCHANGE_PLAN 值 '{raw}' 无效 (可选: {'/'.join(EXCHANGE_PLANS)}/off)，本次跳过兑换")
+    return None
+
+
+def auto_exchange(g, plan_id):
+    """积分达标时自动兑换会员天数，返回用于推送的兑换说明"""
+    info = EXCHANGE_PLANS[plan_id]
+    need, days = info["points"], info["days"]
+
+    try:
+        pts = int(float(g.points))
+    except (TypeError, ValueError):
+        log("⚠️ 积分查询失败，跳过兑换")
+        return "⚠️ 兑换跳过(积分查询失败)"
+
+    if pts < need:
+        return f"⏭️ 积分不足({pts}/{need})，攒够自动兑换{days}天"
+
+    res = g.exchange(plan_id)
+    if res and res.get('code') == 0:
+        log(f"🎁 自动兑换成功: {need}分 → +{days}天")
+        # 兑换消耗积分、增加天数，刷新后推送里才是最新数据
+        g.get_status()
+        g.get_points()
+        return f"🎁 兑换成功 +{days}天 (消耗{need}分)"
+
+    err = res.get('message', 'Failure') if res else "Network Error"
+    log(f"⚠️ 自动兑换失败: {err}")
+    return f"⚠️ 兑换失败({err})"
 
 # ================= 主程序 =================
 
@@ -3925,7 +4199,8 @@ def diagnose_accounts(cookies):
         return 1
     success_cnt = 0
     log('🔎 只读诊断：仅查询登录状态，不签到、不兑换、不推送')
-    log_user_agent_configuration()
+    if not log_user_agent_configuration():
+        return 1
     for i, cookie in enumerate(cookies, 1):
         client = GLaDOS(cookie)
         result = client.req('GET', '/api/user/status')
@@ -3941,8 +4216,10 @@ def diagnose_accounts(cookies):
             log(f'✅ 账号 {i}: 登录状态查询成功')
         elif is_non_retryable_checkin_result(result):
             log(f'❌ 账号 {i}: 会话认证被拒绝；{summarize_checkin_failure(result)}')
+        elif is_missing_api_response(result):
+            log(f'❌ 账号 {i}: 登录状态查询失败；{summarize_checkin_failure(result)}')
         else:
-            log(f'❌ 账号 {i}: 登录状态查询失败，请检查网络并重新登录更新 Cookie')
+            log(f'❌ 账号 {i}: 登录状态查询失败，请检查 API 返回分类和会话配置')
     log('只读查询通过不代表签到设备校验通过；实际签到仍需匹配浏览器 User-Agent')
     return 0 if success_cnt == len(cookies) else 1
 
@@ -3954,11 +4231,21 @@ def main():
         send_alert("⚠️ GLaDOS 配置异常", "未配置 GLADOS_COOKIE，请检查 GitHub Secrets。")
         sys.exit(1)
 
-    log_user_agent_configuration()
+    if not log_user_agent_configuration():
+        send_alert("⚙️ User-Agent 配置错误", "GLADOS_USER_AGENT 含有非法内容，请重新粘贴浏览器 UA（单行、无引号）")
+        sys.exit(1)
 
     # 只读诊断模式：验证 Cookie 能否读取账号状态，不执行任何写操作（上游 #23）
     if env_flag("CHECKIN_DIAGNOSTIC_ONLY", False):
         sys.exit(diagnose_accounts(cookies))
+
+    # 自动兑换（上游 #11）：本地默认关闭，显式配置 EXCHANGE_PLAN 才启用
+    exchange_plan = get_exchange_plan()
+    if exchange_plan:
+        plan = EXCHANGE_PLANS[exchange_plan]
+        log(f"🎁 自动兑换已启用: {plan['points']}分 → {plan['days']}天 (EXCHANGE_PLAN={exchange_plan})")
+    else:
+        log("⏭️ 自动兑换未启用（可兑换时仅提醒）")
 
     # 加载历史数据
     data = load_data()
@@ -3974,21 +4261,21 @@ def main():
     # 失败原因速查（v1.11.0）：账号编号 -> 一行修复指引，附在过期告警末尾
     repair_hints = {}
 
+    # 进程内重试参数（上游 #28）：默认 3 次、间隔 60s；认证类失败不会重试
+    checkin_attempts = parse_int(os.environ.get("CHECKIN_MAX_ATTEMPTS")) or 3
+    retry_delay = parse_int(os.environ.get("CHECKIN_RETRY_DELAY_SECONDS"))
+    if retry_delay is None:
+        retry_delay = 60
+
     for i, cookie in enumerate(cookies, 1):
         g = GLaDOS(cookie)
 
-        # 1. Checkin
-        res = g.checkin()
+        # 1. Checkin（challenge 协议 + 瞬时失败重试，上游 #28/#33）
+        res, is_success = checkin_with_retry(g, checkin_attempts, retry_delay)
 
-        # 检测 Cookie 是否过期/无效/设备不匹配（判定逻辑同步上游 #19/#23，
-        # 新增 HTTP 401/403、permission、automated check-in detected）
+        # 检测 Cookie 是否过期/无效/设备不匹配（判定逻辑同步上游 #19/#23/#28）
         auth_rejected = False
-        if res is None:
-            msg = "Cookie 已过期或网络异常"
-            log(f"❌ 用户 {i}: 所有域名请求失败，Cookie 可能已过期")
-            expired_cookies.append(i)
-            repair_hints[i] = failure_repair_hint(res)
-        elif is_non_retryable_checkin_result(res):
+        if is_non_retryable_checkin_result(res):
             # 认证被拒：用安全摘要替代原始 message，不回显服务端响应内容
             auth_rejected = True
             msg = summarize_checkin_failure(res)
@@ -3996,15 +4283,22 @@ def main():
             expired_cookies.append(i)
             # 失败原因速查（v1.11.0）：按错误类型给出下一步操作，附在告警末尾
             repair_hints[i] = failure_repair_hint(res)
+        elif is_missing_api_response(res):
+            # 网络/服务端瞬时异常（含 challenge 未取到/过期）：不武断标记 Cookie 过期，
+            # 已按重试兜底；速查指引会提示检查网络与稍后重跑
+            msg = summarize_checkin_failure(res)
+            log(f"❌ 用户 {i}: 签到未完成 - {msg}")
+            repair_hints[i] = failure_repair_hint(res)
         else:
-            msg = res.get('message', 'Failure')
+            msg = res.get('message', 'Success' if is_success else 'Failure')
 
         # 2. Get Info (Refresh data)
         # 上游 #23 修复：认证被明确拒绝后，禁止对该账号继续任何后续请求
         # （status/points 等），避免拿坏 Cookie 反复冲击服务端。
-        if not auth_rejected:
+        # 上游 #28 修复：请求层面失败（没拿到 API 响应）时同样不再读取和兑换。
+        if not auth_rejected and not is_missing_api_response(res):
             status_ok = g.get_status()
-            if not status_ok and res is not None:
+            if not status_ok:
                 log(f"⚠️ 用户 {i}: 获取状态失败，Cookie 可能已过期")
                 if i not in expired_cookies:
                     expired_cookies.append(i)
@@ -4017,9 +4311,13 @@ def main():
 
             g.get_points()
 
+            # 2.5 自动兑换（上游 #11）：签到后立即执行，刚拿到的积分计入阈值
+            if exchange_plan:
+                g.exchange_result = auto_exchange(g, exchange_plan)
+
         # 3. Log
-        checkin_ok = is_checkin_success(msg)
-        log(f"用户: {g.email} | 积分: {g.points} | 天数: {g.left_days} | 结果: {msg}")
+        checkin_ok = is_success
+        log(f"用户: {mask_email(g.email)} | 积分: {g.points} | 天数: {g.left_days} | 结果: {msg}")  # 邮箱脱敏（对齐 b1c8c0a 公开日志不出现完整邮箱的约定）
 
         if checkin_ok:
             success_cnt += 1

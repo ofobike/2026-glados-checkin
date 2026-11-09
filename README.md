@@ -772,7 +772,10 @@ else:
 | Name              | Value              | 默认值                | 说明                         |
 | ----------------- | ------------------ | --------------------- | ---------------------------- |
 | `PUSH_LEVEL`      | `all` 或 `fail_only` | `all`               | 推送级别控制                 |
-| `GLADOS_USER_AGENT` | 浏览器 User-Agent（配在 **Variables**） | 内置默认值 | 必须与创建 `gld:sess` 会话的浏览器一致，否则新版接口返回 device-mismatch |
+| `GLADOS_USER_AGENT` | 浏览器 User-Agent（配在 **Variables**） | 内置默认值 | 必须与创建 `gld:sess` 会话的浏览器一致，否则新版接口返回 device-mismatch；粘贴时带引号/带 `User-Agent:` 前缀都能自动容错 |
+| `CHECKIN_MAX_ATTEMPTS` | 次数 | `3` | 单次运行内的签到重试次数；认证类失败不会重试，只有网络/验证类异常才重试 |
+| `CHECKIN_RETRY_DELAY_SECONDS` | 秒 | `60` | 重试间隔秒数 |
+| `EXCHANGE_PLAN` | `plan100`/`plan200`/`plan500`/`off` | `off` | 自动兑换会员天数（上游 #11）。**与上游默认值不同**：上游默认 plan500 自动兑换；本地默认关闭，只提醒不消耗积分，显式配置才会真的兑换 |
 | `WEATHER_CITY`    | 城市名称           | `杭州`                | 天气城市                     |
 | `CHECKIN_HOURS`   | 时间，逗号分隔     | `09:30,21:30`         | 自定义签到时间               |
 | `MONTHLY_GOAL`    | 天数               | `25`                  | 每月签到目标天数             |
@@ -1929,6 +1932,17 @@ gld:sess=BBB; gld:sess.sig=bbb
 ---
 
 ## 📝 更新日志
+
+### v1.12.0 (2026-11-09) 🎯 移植上游 2026-11 签到协议（#28/#33）——修复无法签到
+
+- ✅ **签到挑战协议**：先 GET `/api/user/checkin/challenge` 获取 nonce+ttl，等待最短时长后提交 `proof=SHA-256(nonce + ".glados-observe-v1")`；nonce 不跨域名重放（旧版裸 POST 已无法通过官方新版验证，这是本次签到失败的根因）
+- ✅ **进程内重试** `checkin_with_retry`：默认 3 次、间隔 60s，可由 `CHECKIN_MAX_ATTEMPTS`/`CHECKIN_RETRY_DELAY_SECONDS` 调整；认证类失败立即止损不重试
+- ✅ **UA 容错** `normalize_user_agent`：自动去除外层引号、`User-Agent:` 前缀等复制粘贴问题；非法 UA 启动即报错且不回显原值
+- ✅ **结构化失败分类**：请求层失败（网络/格式/超时）与服务端拒绝彻底区分，`request_failed/invalid_headers/invalid_response/timed_out` 元数据，不再返回 None；「网络抖动」不再被误报为 Cookie 过期
+- ✅ 自动兑换（上游 #11）完整移植（表单提交、兑换后刷新），但**默认关闭**，`EXCHANGE_PLAN` 显式配置才启用；可兑换提醒保持不变
+- ✅ 兑换接口表单提交 `form=True`；HEADERS 补齐浏览器指纹（Accept-Language/Sec-Fetch-*）
+- ✅ 修复本地重构版遗漏的邮箱脱敏：运行日志中的账号邮箱现在统一 `mask_email` 处理
+- ✅ 测试对齐上游：移植 challenge/UA 容错/瞬时失败/认证止损测试，并按本地包结构重写 main 集成测试（76 项全绿）
 
 ### v1.11.0 (2026-10-30) 🧰 运维三连：渠道自检 / 上游更新提醒 / 失败原因速查
 
