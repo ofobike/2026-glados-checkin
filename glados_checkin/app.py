@@ -2622,6 +2622,19 @@ def is_missing_api_response(result):
     return not isinstance(result, dict) or result.get('request_failed') is True
 
 
+def is_turnstile_checkin_result(result):
+    """服务端是否挡自动化签到、要求 Cloudflare Turnstile 人机验证。
+
+    上游 2026-11 起新增：服务端会对自动化签到返回 turnstile 栅栏。
+    这类失败靠重试永远过不了，必须人工去官网完成验证，所以单独识别、停止无效重试。
+    """
+    if not isinstance(result, dict):
+        return False
+    reason = str(result.get('reason', '')).strip().lower()
+    message = str(result.get('message', '')).strip().lower()
+    return reason == 'turnstile' or 'cloudflare verification failed' in message
+
+
 def summarize_checkin_failure(result):
     """安全失败摘要（上游 #23 + #28）：固定标签 + 白名单元数据。
 
@@ -2645,6 +2658,8 @@ def summarize_checkin_failure(result):
         else:
             label = '网络或服务暂时异常，未收到有效 API 响应'
         label += '；本次请求失败，今日签到状态未知'
+    elif is_turnstile_checkin_result(result):
+        label = '服务端要求 Cloudflare Turnstile 人机验证。请先核对官网流水，再按页面提示完成签到'
     elif reason == 'device-mismatch':
         label = '服务端拒绝设备校验；请核对会话和 User-Agent 配置'
     elif 'automated check-in detected' in message:
@@ -2653,7 +2668,6 @@ def summarize_checkin_failure(result):
         label = '服务端拒绝会话认证或访问'
     else:
         label = '签到失败'
-
     details = []
     code = result.get('code')
     if type(code) is int and -999 <= code <= 999:
@@ -2663,7 +2677,7 @@ def summarize_checkin_failure(result):
         details.append(f'http_status={status}')
     if result.get('request_failed') is True and result.get('timed_out') is True:
         details.append('timeout=true')
-    if reason in ('device-mismatch', 'http-auth-rejected'):
+    if reason in ('device-mismatch', 'http-auth-rejected', 'turnstile'):
         details.append(f'reason={reason}')
     return label + (f" [{', '.join(details)}]" if details else '')
 
@@ -2674,7 +2688,8 @@ def is_normal_checkin_result(result):
         return False
     if is_non_retryable_checkin_result(result):
         return False
-
+    if is_turnstile_checkin_result(result):
+        return False
     message = str(result.get('message', '')).strip().lower()
     if any(marker in message for marker in NORMAL_CHECKIN_MESSAGES):
         return True
@@ -2699,6 +2714,10 @@ def checkin_with_retry(client, attempts=3, delay_seconds=60):
             log(f"❌ 签到认证失败，不再重试: {summarize_checkin_failure(last_result)}")
             return last_result, False
 
+        if is_turnstile_checkin_result(last_result):
+            log(f"🧍 服务端要求 Cloudflare Turnstile 人机验证，停止自动重试（重试也无法通过验证）: {summarize_checkin_failure(last_result)}")
+            return last_result, False
+
         if attempt < attempts:
             log(f"⚠️ 签到第 {attempt}/{attempts} 次失败，{delay_seconds} 秒后重试")
             time.sleep(max(0, delay_seconds))
@@ -2719,6 +2738,8 @@ def failure_repair_hint(result):
     status = result.get('http_status')
     if reason == 'device-mismatch':
         return "📱 设备校验失败：把复制该 Cookie 的浏览器 User-Agent 配到 GitHub Variables 的 GLADOS_USER_AGENT，重跑签到"
+    if is_turnstile_checkin_result(result):
+        return "🧍 服务端要求 Cloudflare Turnstile 人机验证：请登录 glados.cloud 的 console/签到页按提示完成一次人工验证，之后观察下次自动签到是否恢复"
     if 'automated check-in detected' in message:
         return "🤖 官方拒绝自动化签到：先更新 Cookie 并匹配浏览器 UA；仍失败说明官方收紧策略，需人工签到或联系服务方"
     if status in (401, 403) or reason == 'http-auth-rejected':
